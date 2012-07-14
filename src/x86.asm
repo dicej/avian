@@ -104,7 +104,7 @@ vmJump:
  mov eax,ds:dword ptr[20+esp]
  mov edx,ds:dword ptr[24+esp]
  mov esp,ds:dword ptr[12+esp]
- jmp dword ptr[esi]
+ jmp esi
  
 VMRUN_FRAME_SIZE equ 24
  
