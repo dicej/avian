@@ -2,7 +2,7 @@
 <VisualStudioProject
 	ProjectType="Visual C++"
 	Version="9,00"
-	Name="avian"
+	Name="avian-win32"
 	ProjectGUID="{517ECFE1-5300-4CCF-87BC-87FAE4DC87D4}"
 	RootNamespace="avian"
 	Keyword="Win32Proj"
@@ -24,8 +24,8 @@
 	<Configurations>
 		<Configuration
 			Name="Debug|Win32"
-			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory="build\win32"
+			IntermediateDirectory="build\win32"
 			ConfigurationType="1"
 			CharacterSet="0"
 			>
@@ -103,6 +103,91 @@
 			/>
 		</Configuration>
 		<Configuration
+			Name="Debug|Windows Mobile 5.0 Pocket PC SDK (ARMV4I)"
+			OutputDirectory="$(SolutionDir)Windows Mobile 5.0 Pocket PC SDK (ARMV4I)\$(ConfigurationName)"
+			IntermediateDirectory="Windows Mobile 5.0 Pocket PC SDK (ARMV4I)\$(ConfigurationName)"
+			ConfigurationType="1"
+			CharacterSet="0"
+			>
+			<Tool
+				Name="VCPreBuildEventTool"
+			/>
+			<Tool
+				Name="VCCustomBuildTool"
+			/>
+			<Tool
+				Name="MASM"
+				PreprocessorDefinitions="TARGET_BYTES_PER_WORD=4"
+				CallingConvention="1"
+			/>
+			<Tool
+				Name="VCXMLDataGeneratorTool"
+			/>
+			<Tool
+				Name="VCWebServiceProxyGeneratorTool"
+			/>
+			<Tool
+				Name="VCMIDLTool"
+				TargetEnvironment="1"
+			/>
+			<Tool
+				Name="VCCLCompilerTool"
+				ExecutionBucket="7"
+				Optimization="0"
+				AdditionalIncludeDirectories="C:\avian\avian\src;&quot;C:\Program Files (x86)\Java\jdk1.6.0_25\include&quot;;&quot;C:\Program Files (x86)\Java\jdk1.6.0_25\include\win32&quot;;C:\avian\win32\msvc\include;&quot;C:\avian\avian\build\windows-i386&quot;"
+				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;AVIAN_VERSION=\&quot;0.6\&quot;;AVIAN_TARGET_ARCH=AVIAN_ARCH_X86;AVIAN_TARGET_PLATFORM=AVIAN_PLATFORM_WINDOWS;USE_ATOMIC_OPERATIONS;TARGET_BYTES_PER_WORD=4;AVIAN_CLASSPATH=\&quot;[classpathJar]\&quot;;AVIAN_JAVA_HOME=\&quot;\&quot;;AVIAN_EMBED_PREFIX=\&quot;\&quot;;_JNI_IMPLEMENTATION_"
+				MinimalRebuild="true"
+				ExceptionHandling="0"
+				RuntimeLibrary="0"
+				UsePrecompiledHeader="0"
+				WarningLevel="3"
+			/>
+			<Tool
+				Name="VCManagedResourceCompilerTool"
+			/>
+			<Tool
+				Name="VCResourceCompilerTool"
+			/>
+			<Tool
+				Name="VCPreLinkEventTool"
+			/>
+			<Tool
+				Name="VCLinkerTool"
+				AdditionalDependencies="zlib.lib ws2_32.lib"
+				LinkIncremental="2"
+				AdditionalLibraryDirectories="C:\avian\win32\msvc\lib"
+				GenerateDebugInformation="true"
+				SubSystem="1"
+				TargetMachine="0"
+			/>
+			<Tool
+				Name="VCALinkTool"
+			/>
+			<Tool
+				Name="VCXDCMakeTool"
+			/>
+			<Tool
+				Name="VCBscMakeTool"
+			/>
+			<Tool
+				Name="VCFxCopTool"
+			/>
+			<Tool
+				Name="VCCodeSignTool"
+			/>
+			<Tool
+				Name="VCPostBuildEventTool"
+			/>
+			<DeploymentTool
+				ForceDirty="-1"
+				RemoteDirectory=""
+				RegisterOutput="0"
+				AdditionalFiles=""
+			/>
+			<DebuggerTool
+			/>
+		</Configuration>
+		<Configuration
 			Name="Release|Win32"
 			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
 			IntermediateDirectory="$(ConfigurationName)"
@@ -177,92 +262,6 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
-			/>
-		</Configuration>
-		<Configuration
-			Name="Debug|Windows Mobile 5.0 Pocket PC SDK (ARMV4I)"
-			OutputDirectory="$(SolutionDir)Windows Mobile 5.0 Pocket PC SDK (ARMV4I)\$(ConfigurationName)"
-			IntermediateDirectory="Windows Mobile 5.0 Pocket PC SDK (ARMV4I)\$(ConfigurationName)"
-			ConfigurationType="1"
-			CharacterSet="0"
-			>
-			<Tool
-				Name="VCPreBuildEventTool"
-			/>
-			<Tool
-				Name="VCCustomBuildTool"
-			/>
-			<Tool
-				Name="MASM"
-				PreprocessorDefinitions="TARGET_BYTES_PER_WORD=4"
-				CallingConvention="1"
-			/>
-			<Tool
-				Name="VCXMLDataGeneratorTool"
-			/>
-			<Tool
-				Name="VCWebServiceProxyGeneratorTool"
-			/>
-			<Tool
-				Name="VCMIDLTool"
-				TargetEnvironment="1"
-			/>
-			<Tool
-				Name="VCCLCompilerTool"
-				ExecutionBucket="7"
-				Optimization="0"
-				AdditionalIncludeDirectories="C:\avian\avian\src;&quot;C:\Program Files (x86)\Java\jdk1.6.0_25\include&quot;;&quot;C:\Program Files (x86)\Java\jdk1.6.0_25\include\win32&quot;;C:\avian\win32\msvc\include;&quot;C:\avian\avian\build\windows-i386&quot;"
-				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;AVIAN_VERSION=\&quot;0.6\&quot;;AVIAN_TARGET_ARCH=AVIAN_ARCH_X86;AVIAN_TARGET_PLATFORM=AVIAN_PLATFORM_WINDOWS;USE_ATOMIC_OPERATIONS;TARGET_BYTES_PER_WORD=4;AVIAN_CLASSPATH=\&quot;[classpathJar]\&quot;;AVIAN_JAVA_HOME=\&quot;\&quot;;AVIAN_EMBED_PREFIX=\&quot;\&quot;;_JNI_IMPLEMENTATION_"
-				MinimalRebuild="true"
-				ExceptionHandling="0"
-				RuntimeLibrary="0"
-				UsePrecompiledHeader="0"
-				WarningLevel="3"
-				DebugInformationFormat="4"
-			/>
-			<Tool
-				Name="VCManagedResourceCompilerTool"
-			/>
-			<Tool
-				Name="VCResourceCompilerTool"
-			/>
-			<Tool
-				Name="VCPreLinkEventTool"
-			/>
-			<Tool
-				Name="VCLinkerTool"
-				AdditionalDependencies="zlib.lib ws2_32.lib"
-				LinkIncremental="2"
-				AdditionalLibraryDirectories="C:\avian\win32\msvc\lib"
-				GenerateDebugInformation="true"
-				SubSystem="1"
-				TargetMachine="0"
-			/>
-			<Tool
-				Name="VCALinkTool"
-			/>
-			<Tool
-				Name="VCXDCMakeTool"
-			/>
-			<Tool
-				Name="VCBscMakeTool"
-			/>
-			<Tool
-				Name="VCFxCopTool"
-			/>
-			<Tool
-				Name="VCCodeSignTool"
-			/>
-			<Tool
-				Name="VCPostBuildEventTool"
-			/>
-			<DeploymentTool
-				ForceDirty="-1"
-				RemoteDirectory=""
-				RegisterOutput="0"
-				AdditionalFiles=""
-			/>
-			<DebuggerTool
 			/>
 		</Configuration>
 		<Configuration
