@@ -20,6 +20,10 @@
 #  define FTIME _ftime
 #endif
 
+#  ifndef TLS_OUT_OF_INDEXES 
+#    define TLS_OUT_OF_INDEXES ((DWORD)0xFFFFFFFF) 
+#  endif 
+
 #undef max
 #undef min
 
@@ -481,11 +485,13 @@ class MySystem: public System {
       if (handle and handle != INVALID_HANDLE_VALUE) {
         if (findNext) {
           if (FindNextFile(handle, &data)) {
-            return data.cFileName;
+			// FIXME
+            return (const char*) data.cFileName;
           }
         } else {
           findNext = true;
-          return data.cFileName;
+		  // FIXME
+          return (const char*) data.cFileName;
         }
       }
       return 0;
@@ -634,10 +640,14 @@ class MySystem: public System {
 
   virtual Status attach(Runnable* r) {
     Thread* t = new (allocate(this, sizeof(Thread))) Thread(this, r);
+#ifdef WINCE
+	t->thread = GetCurrentThread ();
+#else
     bool success UNUSED = DuplicateHandle
       (GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(),
        &(t->thread), 0, false, DUPLICATE_SAME_ACCESS);
-    assert(this, success);
+	assert(this, success);
+#endif    
     r->attach(t);
     return 0;
   }
@@ -700,6 +710,10 @@ class MySystem: public System {
         visitor->visit(reinterpret_cast<void*>(context.Rip),
                        reinterpret_cast<void*>(context.Rbp),
                        reinterpret_cast<void*>(context.Rsp));
+#elif defined ARCH_arm
+		visitor->visit(reinterpret_cast<void*>(context.Pc),
+                       reinterpret_cast<void*>(context.Lr),
+                       reinterpret_cast<void*>(context.Sp));
 #endif
         success = true;
       }
@@ -719,7 +733,6 @@ class MySystem: public System {
 
   virtual Status map(System::Region** region, const char* name) {
     Status status = 1;
-    
     HANDLE file = CreateFile(name, FILE_READ_DATA, FILE_SHARE_READ, 0,
                              OPEN_EXISTING, 0, 0);
     if (file != INVALID_HANDLE_VALUE) {
@@ -768,7 +781,7 @@ class MySystem: public System {
     return status;
   }
 
-  virtual FileType stat(const char* name, unsigned* length) {
+  virtual FileType stat2(const char* name, unsigned* length) {
     struct _stat s;
     int r = _stat(name, &s);
     if (r == 0) {
@@ -786,6 +799,7 @@ class MySystem: public System {
       *length = 0;
       return TypeDoesNotExist;
     }
+	return TypeUnknown;
   }
 
   virtual const char* libraryPrefix() {
@@ -804,9 +818,14 @@ class MySystem: public System {
     {
       return copy(allocator, name);
     } else {
+#ifndef WINCE
       TCHAR buffer[MAX_PATH];
       GetCurrentDirectory(MAX_PATH, buffer);
-      return append(allocator, buffer, "\\", name);
+#else // WINCE
+      char buffer[MAX_PATH];
+	  GetCurrentDirectory(MAX_PATH, buffer);
+#endif      
+	  return append(allocator, buffer, "\\", name);
     }
   }
 
@@ -887,7 +906,11 @@ class MySystem: public System {
 
   HANDLE mutex;
   SignalHandler* handlers[HandlerCount];
+#ifndef WINCE
   LPTOP_LEVEL_EXCEPTION_FILTER oldHandler;
+#else
+  void* oldHandler;
+#endif
   const char* crashDumpDirectory;
 };
 
@@ -919,6 +942,7 @@ typedef BOOL (*MiniDumpWriteDumpType)
 void
 dump(LPEXCEPTION_POINTERS e, const char* directory)
 {
+#ifndef WINCE // FIXME
   HINSTANCE dbghelp = LoadLibrary("dbghelp.dll");
 
   if (dbghelp) {
@@ -955,6 +979,7 @@ dump(LPEXCEPTION_POINTERS e, const char* directory)
 
     FreeLibrary(dbghelp);
   }
+#endif
 }
 
 LONG CALLBACK
@@ -979,6 +1004,11 @@ handleException(LPEXCEPTION_POINTERS e)
     void* base = reinterpret_cast<void*>(e->ContextRecord->Rbp);
     void* stack = reinterpret_cast<void*>(e->ContextRecord->Rsp);
     void* thread = reinterpret_cast<void*>(e->ContextRecord->Rbx);
+#elif defined ARCH_arm
+    void* ip = reinterpret_cast<void*>(e->ContextRecord->Pc);
+    void* base = reinterpret_cast<void*>(e->ContextRecord->Lr);
+    void* stack = reinterpret_cast<void*>(e->ContextRecord->Sp);
+    void* thread = reinterpret_cast<void*>(e->ContextRecord->R12);
 #endif
 
     bool jump = handler->handleSignal(&ip, &base, &stack, &thread);
@@ -993,6 +1023,11 @@ handleException(LPEXCEPTION_POINTERS e)
     e->ContextRecord->Rbp = reinterpret_cast<DWORD64>(base);
     e->ContextRecord->Rsp = reinterpret_cast<DWORD64>(stack);
     e->ContextRecord->Rbx = reinterpret_cast<DWORD64>(thread);
+#elif defined ARCH_arm
+    e->ContextRecord->Pc = reinterpret_cast<DWORD>(ip);
+    e->ContextRecord->Lr = reinterpret_cast<DWORD>(base);
+    e->ContextRecord->Sp = reinterpret_cast<DWORD>(stack);
+    e->ContextRecord->R12 = reinterpret_cast<DWORD>(thread);
 #endif
 
     if (jump) {

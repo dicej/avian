@@ -56,8 +56,11 @@ const bool Continuations = false;
 const unsigned MaxNativeCallFootprint = TargetBytesPerWord == 8 ? 4 : 5;
 
 const unsigned InitialZoneCapacityInBytes = 64 * 1024;
-
+#ifndef WINCE
 const unsigned ExecutableAreaSizeInBytes = 30 * 1024 * 1024;
+#else
+const unsigned ExecutableAreaSizeInBytes = 2 * 1024 * 1024;
+#endif
 
 enum Root {
   CallTable,
@@ -9078,6 +9081,7 @@ class MyProcessor: public Processor {
     if (codeAllocator.base == 0) {
       codeAllocator.base = static_cast<uint8_t*>
         (s->tryAllocateExecutable(ExecutableAreaSizeInBytes));
+	  expect(t, codeAllocator.base);
       codeAllocator.capacity = ExecutableAreaSizeInBytes;
     }
 
@@ -9200,7 +9204,7 @@ logCompile(MyThread* t, const void* code, unsigned size, const char* class_,
     open = true;
     const char* path = findProperty(t, "avian.jit.log");
     if (path) {
-      compileLog = vm::fopen(path, "wb");
+      compileLog = vm::_fopen(path, "wb");
     } else if (DebugCompile) {
       compileLog = stderr;
     }

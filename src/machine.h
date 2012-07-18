@@ -3882,7 +3882,7 @@ errorLog(Thread* t)
   if (t->m->errorLog == 0) {
     const char* path = findProperty(t, "avian.error.log");
     if (path) {
-      t->m->errorLog = vm::fopen(path, "wb");
+      t->m->errorLog = vm::_fopen(path, "wb");
     } else {
       t->m->errorLog = stderr;
     }

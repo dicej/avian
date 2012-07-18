@@ -14,6 +14,9 @@
 #ifdef PLATFORM_WINDOWS
 #  include <winsock2.h>
 #  define ONLY_ON_WINDOWS(x) x
+#  ifdef WINCE
+#    include <wince.h>
+#  endif
 #else
 #  include <netdb.h>
 #  define ONLY_ON_WINDOWS(x)

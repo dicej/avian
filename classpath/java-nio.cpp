@@ -20,6 +20,9 @@
 #  include <winsock2.h>
 #  include <ws2tcpip.h>
 #  include <errno.h>
+#  ifdef WINCE
+#    include <wince.h>
+#  endif
 #  ifdef _MSC_VER
 #    define snprintf sprintf_s
 #  else
@@ -149,6 +152,7 @@ throwSocketException(JNIEnv* e)
 void
 init(JNIEnv* e, sockaddr_in* address, jstring hostString, jint port)
 {
+#ifndef WINCE // FIXME
   const char* chars = e->GetStringUTFChars(hostString, 0);
   if (chars) {
 #ifdef PLATFORM_WINDOWS
@@ -186,6 +190,9 @@ init(JNIEnv* e, sockaddr_in* address, jstring hostString, jint port)
     freeaddrinfo(result);
 #endif
   }
+#else 
+  throwNewErrno(e, "java/lang/UnsupportedOperationException");
+#endif
 }
 
 inline bool

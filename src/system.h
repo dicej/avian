@@ -136,7 +136,7 @@ class System {
                         unsigned count, unsigned size,
                         unsigned returnType) = 0;
   virtual Status map(Region**, const char* name) = 0;
-  virtual FileType stat(const char* name, unsigned* length) = 0;
+  virtual FileType stat2(const char* name, unsigned* length) = 0;
   virtual Status open(Directory**, const char* name) = 0;
   virtual const char* libraryPrefix() = 0;
   virtual const char* librarySuffix() = 0;
@@ -167,7 +167,11 @@ inline void NO_RETURN
 abort(System* s)
 {
   s->abort(); // this should not return
+#ifndef WINCE
   ::abort();
+#else 
+  exit(3);
+#endif
 }
 
 inline void NO_RETURN

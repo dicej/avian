@@ -14,12 +14,15 @@
 		/>
 	</Platforms>
 	<ToolFiles>
+		<DefaultToolFile
+			FileName="armasm.rules"
+		/>
 	</ToolFiles>
 	<Configurations>
 		<Configuration
 			Name="Debug|Windows Mobile 5.0 Pocket PC SDK (ARMV4I)"
-			OutputDirectory="$(PlatformName)\$(ConfigurationName)"
-			IntermediateDirectory="$(PlatformName)\$(ConfigurationName)"
+			OutputDirectory="build\wince"
+			IntermediateDirectory="build\wince"
 			ConfigurationType="1"
 			CharacterSet="1"
 			>
@@ -28,6 +31,11 @@
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
+			/>
+			<Tool
+				Name="ARMASM"
+				ObjectFileName="$(InputName)-asm.obj"
+				Arch="3"
 			/>
 			<Tool
 				Name="VCXMLDataGeneratorTool"
@@ -42,12 +50,14 @@
 				Name="VCCLCompilerTool"
 				ExecutionBucket="7"
 				Optimization="0"
-				PreprocessorDefinitions="_DEBUG;_WIN32_WCE=$(CEVER);UNDER_CE;$(PLATFORMDEFINES);WINCE;DEBUG;_CONSOLE;$(ARCHFAM);$(_ARCHFAM_);_UNICODE;UNICODE"
+				AdditionalIncludeDirectories="C:\avian\libce;C:\avian\avian\src;C:\avian\wince\msvc\include;&quot;C:\avian\avian\build\windows-i386&quot;"
+				PreprocessorDefinitions="_DEBUG;_WIN32_WCE=$(CEVER);UNDER_CE;$(PLATFORMDEFINES);WINCE;DEBUG;_CONSOLE;$(ARCHFAM);$(_ARCHFAM_);_UNICODE;UNICODE;AVIAN_VERSION=\&quot;0.6\&quot;;AVIAN_TARGET_ARCH=AVIAN_ARCH_X86;AVIAN_TARGET_PLATFORM=AVIAN_PLATFORM_WINDOWS;USE_ATOMIC_OPERATIONS;TARGET_BYTES_PER_WORD=4;AVIAN_CLASSPATH=\&quot;[classpathJar]\&quot;;AVIAN_JAVA_HOME=\&quot;\&quot;;AVIAN_EMBED_PREFIX=\&quot;\&quot;;_JNI_IMPLEMENTATION_"
 				MinimalRebuild="true"
 				RuntimeLibrary="1"
 				UsePrecompiledHeader="0"
-				WarningLevel="3"
+				WarningLevel="0"
 				DebugInformationFormat="3"
+				CompileForArchitecture="1"
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"
@@ -64,15 +74,18 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalOptions=" /subsystem:windowsce,5.01"
+				AdditionalDependencies="zlibce.lib ws2.lib libce.lib"
 				OutputFile="$(OutDir)/avian-wince.exe"
 				LinkIncremental="2"
+				AdditionalLibraryDirectories="C:\avian\libce\lib;C:\avian\wince\msvc\lib"
+				IgnoreAllDefaultLibraries="false"
 				DelayLoadDLLs="$(NOINHERIT)"
 				GenerateDebugInformation="true"
 				ProgramDatabaseFile="$(OutDir)/avian-wince.pdb"
 				SubSystem="0"
 				StackReserveSize="65536"
 				StackCommitSize="4096"
-				EntryPointSymbol="mainWCRTStartup"
+				EntryPointSymbol="mainACRTStartup "
 				RandomizedBaseAddress="1"
 				DataExecutionPrevention="0"
 			/>
@@ -98,7 +111,7 @@
 				ForceDirty="-1"
 				RemoteDirectory=""
 				RegisterOutput="0"
-				AdditionalFiles=""
+				AdditionalFiles="C:\avian\wince\msvc\lib\zlibce.dll"
 			/>
 			<DebuggerTool
 			/>
@@ -115,6 +128,9 @@
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
+			/>
+			<Tool
+				Name="ARMASM"
 			/>
 			<Tool
 				Name="VCXMLDataGeneratorTool"
@@ -201,18 +217,247 @@
 			Filter="cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx"
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
-		</Filter>
-		<Filter
-			Name="Header Files"
-			Filter="h;hpp;hxx;hm;inl;inc;xsd"
-			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
-			>
+			<File
+				RelativePath=".\src\arm.asm"
+				>
+				<FileConfiguration
+					Name="Debug|Windows Mobile 5.0 Pocket PC SDK (ARMV4I)"
+					>
+					<Tool
+						Name="ARMASM"
+						ObjectFileName="$(IntDir)\$(InputName)-asm.obj"
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath=".\src\arm.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\src\boot.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\src\builtin.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\src\classpath-avian.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\src\compile-arm.asm"
+				>
+				<FileConfiguration
+					Name="Debug|Windows Mobile 5.0 Pocket PC SDK (ARMV4I)"
+					>
+					<Tool
+						Name="ARMASM"
+						ObjectFileName="$(IntDir)\$(InputName)-asm.obj"
+						Arch="3"
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath=".\src\compile.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\src\compiler.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\src\finder.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\src\heap.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\src\jnienv.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\src\machine.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\src\main.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\src\process.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\src\util.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\src\windows.cpp"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Resource Files"
 			Filter="rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav"
 			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
 			>
+		</Filter>
+		<Filter
+			Name="Classpath Files"
+			>
+			<File
+				RelativePath=".\classpath\java-io.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\classpath\java-lang.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\classpath\java-net.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\classpath\java-nio.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\classpath\java-util-zip.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\classpath\java-util.cpp"
+				>
+			</File>
+		</Filter>
+		<Filter
+			Name="Header Files"
+			Filter="h;hpp;hxx;hm;inl;inc;xsd"
+			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
+			>
+			<File
+				RelativePath=".\src\allocator.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\arch.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\arm.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\assembler.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\bootimage.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\classpath-common.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\common.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\compiler.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\constants.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\environment.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\finder.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\heap.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\heapwalk.h"
+				>
+			</File>
+			<File
+				RelativePath=".\classpath\jni-util.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\jnienv.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\lzma-util.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\lzma.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\machine.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\process.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\processor.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\stream.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\system.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\target-fields.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\target.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\tokenizer.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\types.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\util.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\vector.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\zlib-custom.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\zone.h"
+				>
+			</File>
 		</Filter>
 	</Files>
 	<Globals>

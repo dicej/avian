@@ -1,4 +1,4 @@
-		AREA text, CODE, ALIGN=2
+     	AREA text, CODE, ALIGN=2
 
 		EXPORT vmNativeCall
 vmNativeCall
@@ -49,8 +49,8 @@ vmJump
 CHECKPOINT_THREAD EQU 4
 CHECKPOINT_STACK EQU 24
 
-		EXPORT vmRun
-vmRun
+		EXPORT vmRun1
+vmRun1
 		; r0: function
 		; r1: arguments
 		; r2: checkpoint

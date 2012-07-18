@@ -314,7 +314,7 @@ class PoolOffset;
 class PoolEvent;
 
 void
-resolve(MyBlock*);
+_resolve(MyBlock*);
 
 unsigned
 padding(MyBlock*, unsigned);
@@ -331,7 +331,7 @@ class MyBlock: public Assembler::Block {
     this->start = start;
     this->next = static_cast<MyBlock*>(next);
 
-    ::resolve(this);
+	_resolve(this);
 
     return start + size + padding(this, size);
   }
@@ -472,7 +472,7 @@ class Offset: public Promise {
 };
 
 Promise*
-offset(Context* con, bool forTrace = false)
+_offset(Context* con, bool forTrace = false)
 {
   return new(con->zone) Offset(con, con->lastBlock, con->code.length(), forTrace);
 }
@@ -844,7 +844,7 @@ padding(MyBlock* b, unsigned offset)
 }
 
 void
-resolve(MyBlock* b)
+_resolve(MyBlock* b)
 {
   Context* con = b->context;
 
@@ -1706,7 +1706,7 @@ branch(Context* con, TernaryOperation op)
 void
 conditional(Context* con, int32_t branch, Assembler::Constant* target)
 {
-  appendOffsetTask(con, target->value, offset(con));
+  appendOffsetTask(con, target->value, _offset(con));
   emit(con, branch);
 }
 
@@ -1925,7 +1925,7 @@ callC(Context* con, unsigned size UNUSED, Assembler::Constant* target)
 {
   assert(con, size == TargetBytesPerWord);
 
-  appendOffsetTask(con, target->value, offset(con));
+  appendOffsetTask(con, target->value, _offset(con));
   emit(con, bl(0));
 }
 
@@ -1935,7 +1935,7 @@ longCallC(Context* con, unsigned size UNUSED, Assembler::Constant* target)
   assert(con, size == TargetBytesPerWord);
 
   Assembler::Register tmp(4);
-  moveCR2(con, TargetBytesPerWord, target, &tmp, offset(con));
+  moveCR2(con, TargetBytesPerWord, target, &tmp, _offset(con));
   callR(con, TargetBytesPerWord, &tmp);
 }
 
@@ -1945,7 +1945,7 @@ longJumpC(Context* con, unsigned size UNUSED, Assembler::Constant* target)
   assert(con, size == TargetBytesPerWord);
 
   Assembler::Register tmp(4); // a non-arg reg that we don't mind clobbering
-  moveCR2(con, TargetBytesPerWord, target, &tmp, offset(con));
+  moveCR2(con, TargetBytesPerWord, target, &tmp, _offset(con));
   jumpR(con, TargetBytesPerWord, &tmp);
 }
 
@@ -1954,7 +1954,7 @@ jumpC(Context* con, unsigned size UNUSED, Assembler::Constant* target)
 {
   assert(con, size == TargetBytesPerWord);
 
-  appendOffsetTask(con, target->value, offset(con));
+  appendOffsetTask(con, target->value, _offset(con));
   emit(con, b(0));
 }
 
@@ -1976,13 +1976,13 @@ memoryBarrier(Context*) {}
 // END OPERATION COMPILERS
 
 unsigned
-argumentFootprint(unsigned footprint)
+_argumentFootprint(unsigned footprint)
 {
   return max(pad(footprint, StackAlignmentInWords), StackAlignmentInWords);
 }
 
 void
-nextFrame(ArchitectureContext* con, uint32_t* start, unsigned size UNUSED,
+_nextFrame(ArchitectureContext* con, uint32_t* start, unsigned size UNUSED,
           unsigned footprint, void* link, bool,
           unsigned targetParameterFootprint UNUSED, void** ip, void** stack)
 {
@@ -2015,8 +2015,8 @@ nextFrame(ArchitectureContext* con, uint32_t* start, unsigned size UNUSED,
   }
 
   if (TailCalls) {
-    if (argumentFootprint(targetParameterFootprint) > StackAlignmentInWords) {
-      offset += argumentFootprint(targetParameterFootprint)
+    if (_argumentFootprint(targetParameterFootprint) > StackAlignmentInWords) {
+      offset += _argumentFootprint(targetParameterFootprint)
         - StackAlignmentInWords;
     }
 
@@ -2204,7 +2204,7 @@ class MyArchitecture: public Assembler::Architecture {
   }
 
   virtual unsigned argumentFootprint(unsigned footprint) {
-    return ::argumentFootprint(footprint);
+    return _argumentFootprint(footprint);
   }
 
   virtual bool argumentAlignment() {
@@ -2293,7 +2293,7 @@ class MyArchitecture: public Assembler::Architecture {
                          unsigned targetParameterFootprint, void** ip,
                          void** stack)
   {
-    ::nextFrame(&con, static_cast<uint32_t*>(start), size, footprint, link,
+    _nextFrame(&con, static_cast<uint32_t*>(start), size, footprint, link,
                 mostRecent, targetParameterFootprint, ip, stack);
   }
 
@@ -2604,7 +2604,7 @@ class MyAssembler: public Assembler {
       unsigned size;
       OperandType type;
       Operand* operand;
-    } arguments[argumentCount];
+    } arguments[200]; // FIXME: argumentCount
 
     va_list a; va_start(a, argumentCount);
     unsigned footprint = 0;
@@ -2848,7 +2848,7 @@ class MyAssembler: public Assembler {
         bool jump = needJump(b);
         if (jump) {
           write4
-            (dst + dstOffset, ::b((poolSize + TargetBytesPerWord - 8) >> 2));
+			  (dst + dstOffset, isa::b((poolSize + TargetBytesPerWord - 8) >> 2));
         }
 
         dstOffset += poolSize + (jump ? TargetBytesPerWord : 0);
@@ -2882,7 +2882,7 @@ class MyAssembler: public Assembler {
   }
 
   virtual Promise* offset(bool forTrace) {
-    return ::offset(&con, forTrace);
+    return _offset(&con, forTrace);
   }
 
   virtual Block* endBlock(bool startNew) {

@@ -96,11 +96,16 @@ namespace {
   
   int descriptor(JNIEnv* e, HANDLE h)
   {
+#ifndef WINCE // FIXME
     int fd = _open_osfhandle(reinterpret_cast<intptr_t>(h), 0);
     if (fd == -1) {
       throwNewErrno(e, "java/io/IOException");
     }
     return fd;
+#else
+    throwNewErrno(e, "java/lang/UnsupportedOperationException");
+	return 0;
+#endif 
   }
 #else
   void makePipe(JNIEnv* e, int p[2])
@@ -194,7 +199,7 @@ extern "C" JNIEXPORT void JNICALL
 Java_java_lang_Runtime_exec(JNIEnv* e, jclass, 
                             jobjectArray command, jlongArray process)
 {
-  
+#ifndef WINCE // FIXME  
   int size = 0;
   for (int i = 0; i < e->GetArrayLength(command); ++i){
     jstring element = (jstring) e->GetObjectArrayElement(command, i);
@@ -265,6 +270,9 @@ Java_java_lang_Runtime_exec(JNIEnv* e, jclass,
   e->SetLongArrayRegion(process, 0, 1, &pid);
   jlong tid = reinterpret_cast<jlong>(pi.hThread);  
   e->SetLongArrayRegion(process, 1, 1, &tid);
+#else
+  throwNewErrno(e, "java/lang/UnsupportedOperationException");
+#endif
 }
 
 extern "C" JNIEXPORT jint JNICALL 
@@ -511,6 +519,7 @@ extern "C" JNIEXPORT jstring JNICALL
 Java_java_lang_System_getProperty(JNIEnv* e, jclass, jstring name,
                                   jbooleanArray found)
 {
+#ifndef WINCE // FIXME
   jstring r = 0;
   const char* chars = e->GetStringUTFChars(name, 0);
   if (chars) {
@@ -629,6 +638,10 @@ Java_java_lang_System_getProperty(JNIEnv* e, jclass, jstring name,
   }
 
   return r;
+#else
+  throwNewErrno(e, "java/lang/UnsupportedOperationException");
+  return 0;
+#endif
 }
 
 // System.getEnvironment() implementation
@@ -641,6 +654,8 @@ namespace {
 #elif defined __APPLE__
 #  include <crt_externs.h>
 #  define environ (*_NSGetEnviron())
+#elif defined WINCE
+  const char* environ[] = { 0 };
 #else
 extern char** environ;
 #endif

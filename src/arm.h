@@ -62,13 +62,21 @@ namespace vm {
 inline void
 trap()
 {
+#ifdef WINCE
+  
+#else
   asm("bkpt");
+#endif
 }
 
 inline void
 memoryBarrier()
 {
+#ifdef WINCE
+ 
+#else
   asm("nop");
+#endif
 }
 
 inline void
@@ -94,6 +102,8 @@ syncInstructionCache(const void* start, unsigned size)
 {
 #ifdef __APPLE__
   sys_icache_invalidate(const_cast<void*>(start), size);
+#elif WINCE
+	FlushInstructionCache(GetCurrentProcess(), start, size);
 #else
   __clear_cache
     (const_cast<void*>(start),
@@ -111,6 +121,9 @@ atomicCompareAndSwap32(uint32_t* p, uint32_t old, uint32_t new_)
 {
 #ifdef __APPLE__
   return OSAtomicCompareAndSwap32(old, new_, reinterpret_cast<int32_t*>(p));
+#elif WINCE
+  long r = InterlockedCompareExchange(reinterpret_cast<LPLONG>(p), new_, old); 
+  return (!r ? true : false);
 #else
   int r = __kernel_cmpxchg(static_cast<int>(old), static_cast<int>(new_), reinterpret_cast<int*>(p));
   return (!r ? true : false);
@@ -138,7 +151,8 @@ dynamicCall(void* function, uintptr_t* arguments, uint8_t* argumentTypes,
   uintptr_t gprTable[GprCount];
   unsigned gprIndex = 0;
 
-  uintptr_t stack[(argumentCount * 8) / BytesPerWord]; // is > argumentSize to account for padding
+  //uintptr_t stack[(argumentCount * 8) / BytesPerWord]; // is > argumentSize to account for padding
+  uintptr_t* stack = static_cast<uintptr_t*>(malloc(sizeof(uintptr_t) * (argumentCount * 8) / BytesPerWord)); // is > argumentSize to account for padding
   unsigned stackIndex = 0;
 
   unsigned ai = 0;
@@ -190,9 +204,11 @@ dynamicCall(void* function, uintptr_t* arguments, uint8_t* argumentTypes,
   }
 
   unsigned stackSize = stackIndex*BytesPerWord + ((stackIndex & 1) << 2);
-  return vmNativeCall
+  uint64_t retVal = vmNativeCall
     (function, stackSize, stack, stackIndex * BytesPerWord,
      (gprIndex ? gprTable : 0));
+  free(stack);
+  return retVal;
 }
 
 } // namespace vm
