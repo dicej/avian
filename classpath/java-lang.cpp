@@ -519,7 +519,6 @@ extern "C" JNIEXPORT jstring JNICALL
 Java_java_lang_System_getProperty(JNIEnv* e, jclass, jstring name,
                                   jbooleanArray found)
 {
-#ifndef WINCE // FIXME
   jstring r = 0;
   const char* chars = e->GetStringUTFChars(name, 0);
   if (chars) {
@@ -549,22 +548,24 @@ Java_java_lang_System_getProperty(JNIEnv* e, jclass, jstring name,
       r = e->NewStringUTF("arm");
 #endif
     } else if (strcmp(chars, "java.io.tmpdir") == 0) {
-      TCHAR buffer[MAX_PATH];
-      GetTempPath(MAX_PATH, buffer);
-      r = e->NewStringUTF(buffer);
+      //TCHAR buffer[MAX_PATH];
+      //GetTempPath(MAX_PATH, buffer);
+      //r = e->NewStringUTF(buffer);
+	  r = 0;
     } else if (strcmp(chars, "user.dir") == 0) {
-      TCHAR buffer[MAX_PATH];
-      GetCurrentDirectory(MAX_PATH, buffer);
-      r = e->NewStringUTF(buffer);
+      //TCHAR buffer[MAX_PATH];
+      //GetCurrentDirectory(MAX_PATH, buffer);
+      //r = e->NewStringUTF(buffer);
+	  r = 0;
     } else if (strcmp(chars, "user.home") == 0) {
 #  ifdef _MSC_VER
-      WCHAR buffer[MAX_PATH];
-      size_t needed;
-      if (_wgetenv_s(&needed, buffer, MAX_PATH, L"USERPROFILE") == 0) {
-        r = e->NewString(reinterpret_cast<jchar*>(buffer), lstrlenW(buffer));
-      } else {
+      //WCHAR buffer[MAX_PATH];
+      //size_t needed;
+      //if (_wgetenv_s(&needed, buffer, MAX_PATH, L"USERPROFILE") == 0) {
+      //  r = e->NewString(reinterpret_cast<jchar*>(buffer), lstrlenW(buffer));
+      //} else {
         r = 0;
-      }
+      //}
 #  else
       LPWSTR home = _wgetenv(L"USERPROFILE");
       r = e->NewString(reinterpret_cast<jchar*>(home), lstrlenW(home));
@@ -638,10 +639,6 @@ Java_java_lang_System_getProperty(JNIEnv* e, jclass, jstring name,
   }
 
   return r;
-#else
-  throwNewErrno(e, "java/lang/UnsupportedOperationException");
-  return 0;
-#endif
 }
 
 // System.getEnvironment() implementation

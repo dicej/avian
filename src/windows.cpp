@@ -733,7 +733,7 @@ class MySystem: public System {
 
   virtual Status map(System::Region** region, const char* name) {
     Status status = 1;
-    HANDLE file = CreateFile(name, FILE_READ_DATA, FILE_SHARE_READ, 0,
+    HANDLE file = CreateFile(name, GENERIC_READ, FILE_SHARE_READ, 0,
                              OPEN_EXISTING, 0, 0);
     if (file != INVALID_HANDLE_VALUE) {
       unsigned size = GetFileSize(file, 0);
@@ -837,7 +837,11 @@ class MySystem: public System {
     if (name) {
       handle = LoadLibrary(name);
     } else {
+#ifndef WINCE // FIXME
       handle = GetModuleHandle(0);
+#else
+	  handle = LoadLibrary("jvm.dll");
+#endif
     }
  
     if (handle) {

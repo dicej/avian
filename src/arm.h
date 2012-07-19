@@ -57,13 +57,16 @@ extern "C" uint64_t
 vmNativeCall(void* function, unsigned stackTotal, void* memoryTable,
              unsigned memoryCount, void* gprTable);
 
+extern "C" void 
+vmTrap(void);
+
 namespace vm {
 
 inline void
 trap()
 {
 #ifdef WINCE
-  
+  vmTrap();
 #else
   asm("bkpt");
 #endif
@@ -73,7 +76,7 @@ inline void
 memoryBarrier()
 {
 #ifdef WINCE
- 
+ _ReadWriteBarrier();
 #else
   asm("nop");
 #endif
@@ -122,7 +125,7 @@ atomicCompareAndSwap32(uint32_t* p, uint32_t old, uint32_t new_)
 #ifdef __APPLE__
   return OSAtomicCompareAndSwap32(old, new_, reinterpret_cast<int32_t*>(p));
 #elif WINCE
-  long r = InterlockedCompareExchange(reinterpret_cast<LPLONG>(p), new_, old); 
+  long r = InterlockedCompareExchange((long*)p, new_, old); 
   return (!r ? true : false);
 #else
   int r = __kernel_cmpxchg(static_cast<int>(old), static_cast<int>(new_), reinterpret_cast<int*>(p));

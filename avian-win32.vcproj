@@ -74,6 +74,8 @@
 				LinkIncremental="2"
 				AdditionalLibraryDirectories="C:\avian\win32\msvc\lib"
 				GenerateDebugInformation="true"
+				GenerateMapFile="true"
+				MapExports="true"
 				SubSystem="1"
 				TargetMachine="1"
 			/>

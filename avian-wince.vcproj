@@ -51,7 +51,7 @@
 				ExecutionBucket="7"
 				Optimization="0"
 				AdditionalIncludeDirectories="C:\avian\libce;C:\avian\avian\src;C:\avian\wince\msvc\include;&quot;C:\avian\avian\build\windows-i386&quot;"
-				PreprocessorDefinitions="_DEBUG;_WIN32_WCE=$(CEVER);UNDER_CE;$(PLATFORMDEFINES);WINCE;DEBUG;_CONSOLE;$(ARCHFAM);$(_ARCHFAM_);_UNICODE;UNICODE;AVIAN_VERSION=\&quot;0.6\&quot;;AVIAN_TARGET_ARCH=AVIAN_ARCH_X86;AVIAN_TARGET_PLATFORM=AVIAN_PLATFORM_WINDOWS;USE_ATOMIC_OPERATIONS;TARGET_BYTES_PER_WORD=4;AVIAN_CLASSPATH=\&quot;[classpathJar]\&quot;;AVIAN_JAVA_HOME=\&quot;\&quot;;AVIAN_EMBED_PREFIX=\&quot;\&quot;;_JNI_IMPLEMENTATION_"
+				PreprocessorDefinitions="_DEBUG;_WIN32_WCE=$(CEVER);UNDER_CE;$(PLATFORMDEFINES);WINCE;DEBUG;_CONSOLE;$(ARCHFAM);$(_ARCHFAM_);_UNICODE;UNICODE;AVIAN_VERSION=\&quot;0.6\&quot;;AVIAN_TARGET_ARCH=AVIAN_ARCH_X86;AVIAN_TARGET_PLATFORM=AVIAN_PLATFORM_WINDOWS;USE_ATOMIC_OPERATIONS_;TARGET_BYTES_PER_WORD=4;AVIAN_CLASSPATH=\&quot;[classpathJar]\&quot;;AVIAN_JAVA_HOME=\&quot;\&quot;;AVIAN_EMBED_PREFIX=\&quot;\&quot;;_JNI_IMPLEMENTATION_"
 				MinimalRebuild="true"
 				RuntimeLibrary="1"
 				UsePrecompiledHeader="0"
@@ -75,13 +75,15 @@
 				Name="VCLinkerTool"
 				AdditionalOptions=" /subsystem:windowsce,5.01"
 				AdditionalDependencies="zlibce.lib ws2.lib libce.lib"
-				OutputFile="$(OutDir)/avian-wince.exe"
+				OutputFile="$(OutDir)/avian.exe"
 				LinkIncremental="2"
 				AdditionalLibraryDirectories="C:\avian\libce\lib;C:\avian\wince\msvc\lib"
 				IgnoreAllDefaultLibraries="false"
 				DelayLoadDLLs="$(NOINHERIT)"
 				GenerateDebugInformation="true"
-				ProgramDatabaseFile="$(OutDir)/avian-wince.pdb"
+				ProgramDatabaseFile="$(OutDir)/avian.exe.pdb"
+				GenerateMapFile="true"
+				MapExports="true"
 				SubSystem="0"
 				StackReserveSize="65536"
 				StackCommitSize="4096"
@@ -109,9 +111,9 @@
 			/>
 			<DeploymentTool
 				ForceDirty="-1"
-				RemoteDirectory=""
+				RemoteDirectory="\"
 				RegisterOutput="0"
-				AdditionalFiles="C:\avian\wince\msvc\lib\zlibce.dll"
+				AdditionalFiles="C:\avian\wince\msvc\lib\zlibce.dll;C:\avian\avian\build\windows-i386\Hello.class;C:\avian\avian\build\windows-i386\classpath.jar"
 			/>
 			<DebuggerTool
 			/>

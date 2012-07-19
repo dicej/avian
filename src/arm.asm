@@ -71,4 +71,8 @@ vmRun_returnAddress
 		ldmfd sp!, {r4-r11, lr}
 		bx    lr
 
+		EXPORT vmTrap		
+vmTrap
+		bkpt 3
+		
 		END
