@@ -245,7 +245,7 @@ inline int bpl(int offset) { return SETCOND(b(offset), PL); }
 inline int fmstat() { return fmrx(15, FPSCR); }
 // HARDWARE FLAGS
 bool vfpSupported() {
-  return true; // TODO
+  return false; // TODO
 }
 }
 
