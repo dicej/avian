@@ -1325,7 +1325,7 @@ object&
 root(Thread* t, Machine::Root root);
 
 extern "C" uint64_t
-vmRun(uint64_t (*function)(Thread*, uintptr_t*), uintptr_t* arguments,
+vmRun1(uint64_t (*function)(Thread*, uintptr_t*), uintptr_t* arguments,
       void* checkpoint);
 
 extern "C" void
@@ -1917,7 +1917,7 @@ runRaw(Thread* t,
        uint64_t (*function)(Thread*, uintptr_t*), uintptr_t* arguments)
 {
   Thread::RunCheckpoint checkpoint(t);
-  return vmRun(function, arguments, &checkpoint);
+  return vmRun1(function, arguments, &checkpoint);
 }
 
 inline uint64_t
