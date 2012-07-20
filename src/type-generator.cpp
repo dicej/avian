@@ -10,7 +10,9 @@
 
 #include "stdlib.h"
 #include "stdio.h"
-#include "stdint.h"
+#ifndef _MSC_VER
+#  include "stdint.h"
+#endif
 #include "string.h"
 #include "errno.h"
 
@@ -20,9 +22,14 @@
 
 #include "assert.h"
 
-#define UNREACHABLE abort()
+#  define UNREACHABLE abort()
 
-#define UNUSED __attribute__((unused))
+#ifdef _MSC_VER
+#  define UNUSED
+#else
+#  define UNUSED __attribute__((unused))
+
+#endif
 
 inline void operator delete(void*) { abort(); }
 
@@ -1118,7 +1125,7 @@ parseJavaClass(Object* type, Stream* s, Object* declarations)
   s->read2(); // major version
 
   unsigned poolCount = s->read2() - 1;
-  uintptr_t pool[poolCount];
+  uintptr_t pool[1000]; //FIXME: poolCount
   for (unsigned i = 0; i < poolCount; ++i) {
     unsigned c = s->read1();
 
@@ -2114,6 +2121,9 @@ extern "C" uint64_t
 vmNativeCall(void*, void*, unsigned, unsigned)
 {
   abort();
+#ifdef _MSC_VER
+	return -1;
+#endif 
 }
 
 extern "C" void

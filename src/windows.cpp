@@ -781,7 +781,7 @@ class MySystem: public System {
     return status;
   }
 
-  virtual FileType stat2(const char* name, unsigned* length) {
+  virtual FileType stat1(const char* name, unsigned* length) {
     struct _stat s;
     int r = _stat(name, &s);
     if (r == 0) {

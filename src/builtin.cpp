@@ -132,7 +132,7 @@ Avian_avian_Machine_dumpHeap
   unsigned length = stringLength(t, outputFile);
   THREAD_RUNTIME_ARRAY(t, char, n, length + 1);
   stringChars(t, outputFile, RUNTIME_ARRAY_BODY(n));
-  FILE* out = vm::_fopen(RUNTIME_ARRAY_BODY(n), "wb");
+  FILE* out = vm::fopen1(RUNTIME_ARRAY_BODY(n), "wb");
   if (out) {
     { ENTER(t, Thread::ExclusiveState);
       dumpHeap(t, out);
