@@ -103,10 +103,10 @@
 		</Configuration>
 		<Configuration
 			Name="Release|Win32"
-			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory="build\win32"
+			IntermediateDirectory="build\win32"
 			ConfigurationType="1"
-			CharacterSet="1"
+			CharacterSet="0"
 			WholeProgramOptimization="1"
 			>
 			<Tool
@@ -117,6 +117,8 @@
 			/>
 			<Tool
 				Name="MASM"
+				ObjectFileName="$(IntDir)\$(InputName)-asm.obj"
+				PreprocessorDefinitions="TARGET_BYTES_PER_WORD=4"
 			/>
 			<Tool
 				Name="VCXMLDataGeneratorTool"
@@ -131,7 +133,8 @@
 				Name="VCCLCompilerTool"
 				Optimization="2"
 				EnableIntrinsicFunctions="true"
-				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE"
+				AdditionalIncludeDirectories="C:\avian\avian\src;&quot;C:\Program Files (x86)\Java\jdk1.6.0_25\include&quot;;&quot;C:\Program Files (x86)\Java\jdk1.6.0_25\include\win32&quot;;&quot;C:\avian\avian\build\windows-i386&quot;;C:\avian\win32\msvc\include"
+				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE;AVIAN_VERSION=\&quot;0.6\&quot;;AVIAN_TARGET_ARCH=AVIAN_ARCH_X86;AVIAN_TARGET_PLATFORM=AVIAN_PLATFORM_WINDOWS;USE_ATOMIC_OPERATIONS;TARGET_BYTES_PER_WORD=4;AVIAN_CLASSPATH=\&quot;[classpathJar]\&quot;;AVIAN_JAVA_HOME=\&quot;\&quot;;AVIAN_EMBED_PREFIX=\&quot;\&quot;;_JNI_IMPLEMENTATION_"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
 				UsePrecompiledHeader="0"
@@ -149,7 +152,9 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				AdditionalDependencies="zlib.lib ws2_32.lib"
 				LinkIncremental="1"
+				AdditionalLibraryDirectories="C:\avian\win32\msvc\lib"
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				OptimizeReferences="2"

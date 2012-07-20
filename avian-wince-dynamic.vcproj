@@ -110,8 +110,8 @@
 		</Configuration>
 		<Configuration
 			Name="Release|Windows Mobile 5.0 Pocket PC SDK (ARMV4I)"
-			OutputDirectory="$(PlatformName)\$(ConfigurationName)"
-			IntermediateDirectory="$(PlatformName)\$(ConfigurationName)"
+			OutputDirectory="build\wince"
+			IntermediateDirectory="build\wince"
 			ConfigurationType="1"
 			CharacterSet="1"
 			>
@@ -135,6 +135,7 @@
 				ExecutionBucket="7"
 				Optimization="2"
 				FavorSizeOrSpeed="2"
+				AdditionalIncludeDirectories="C:\avian\libce;C:\avian\avian\src;C:\avian\wince\msvc\include;&quot;C:\avian\avian\build\windows-i386&quot;"
 				PreprocessorDefinitions="NDEBUG;_WIN32_WCE=$(CEVER);UNDER_CE;$(PLATFORMDEFINES);WINCE;_CONSOLE;$(ARCHFAM);$(_ARCHFAM_);_UNICODE;UNICODE"
 				RuntimeLibrary="0"
 				UsePrecompiledHeader="0"
@@ -156,8 +157,10 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalOptions=" /subsystem:windowsce,5.01"
-				OutputFile="$(OutDir)/avian-wince-dynamic.exe"
+				AdditionalDependencies="avian.lib"
+				OutputFile="$(OutDir)/avian-dynamic.exe"
 				LinkIncremental="1"
+				AdditionalLibraryDirectories="C:\avian\avian\build\wince"
 				DelayLoadDLLs="$(NOINHERIT)"
 				GenerateDebugInformation="true"
 				ProgramDatabaseFile="$(OutDir)/avian-wince-dynamic.pdb"
@@ -166,7 +169,7 @@
 				StackCommitSize="4096"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
-				EntryPointSymbol="mainWCRTStartup"
+				EntryPointSymbol="mainACRTStartup"
 				RandomizedBaseAddress="1"
 				DataExecutionPrevention="0"
 			/>
@@ -190,7 +193,7 @@
 			/>
 			<DeploymentTool
 				ForceDirty="-1"
-				RemoteDirectory=""
+				RemoteDirectory="\"
 				RegisterOutput="0"
 				AdditionalFiles=""
 			/>

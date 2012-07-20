@@ -659,6 +659,9 @@ extern char** environ;
 extern "C" JNIEXPORT jobjectArray JNICALL
 Java_java_lang_System_getEnvironment(JNIEnv* env, jclass) {
   int length;
+#ifdef NDEBUG // FIXME: Workaround for deprecated usage of environ under Windows release builds
+  const char* environ[] = { 0 };
+#endif
   for (length = 0; environ[length] != 0; ++length) ;
 
   jobjectArray stringArray =

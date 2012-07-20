@@ -12,10 +12,12 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libce", "..\libce\libce.vcproj", "{0C70731E-6E13-4102-8FA7-4F63DC7E4DAC}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "avian-wince-dll", "avian-wince-dll.vcproj", "{A8D82471-9134-4308-B7BA-C7E692823276}"
+	ProjectSection(ProjectDependencies) = postProject
+		{0C70731E-6E13-4102-8FA7-4F63DC7E4DAC} = {0C70731E-6E13-4102-8FA7-4F63DC7E4DAC}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "avian-wince-dynamic", "avian-wince-dynamic.vcproj", "{5FAC67B2-A6CC-458A-A339-F57D3332003A}"
 	ProjectSection(ProjectDependencies) = postProject
-		{0C70731E-6E13-4102-8FA7-4F63DC7E4DAC} = {0C70731E-6E13-4102-8FA7-4F63DC7E4DAC}
 		{A8D82471-9134-4308-B7BA-C7E692823276} = {A8D82471-9134-4308-B7BA-C7E692823276}
 	EndProjectSection
 EndProject

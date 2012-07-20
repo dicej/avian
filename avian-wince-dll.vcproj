@@ -35,6 +35,8 @@
 			/>
 			<Tool
 				Name="ARMASM"
+				ObjectFileName="$(IntDir)\$(InputName)-asm.obj"
+				Arch="3"
 			/>
 			<Tool
 				Name="VCXMLDataGeneratorTool"
@@ -117,10 +119,11 @@
 		</Configuration>
 		<Configuration
 			Name="Release|Windows Mobile 5.0 Pocket PC SDK (ARMV4I)"
-			OutputDirectory="$(PlatformName)\$(ConfigurationName)"
-			IntermediateDirectory="$(PlatformName)\$(ConfigurationName)"
+			OutputDirectory="build\wince"
+			IntermediateDirectory="build\wince"
 			ConfigurationType="2"
 			CharacterSet="1"
+			BuildLogFile="$(IntDir)\BuildLog-wince-dll.htm"
 			>
 			<Tool
 				Name="VCPreBuildEventTool"
@@ -130,6 +133,8 @@
 			/>
 			<Tool
 				Name="ARMASM"
+				ObjectFileName="$(IntDir)\$(InputName)-asm.obj"
+				Arch="3"
 			/>
 			<Tool
 				Name="VCXMLDataGeneratorTool"
@@ -144,10 +149,11 @@
 				Name="VCCLCompilerTool"
 				ExecutionBucket="7"
 				Optimization="2"
-				FavorSizeOrSpeed="2"
-				PreprocessorDefinitions="NDEBUG;_WIN32_WCE=$(CEVER);UNDER_CE;$(PLATFORMDEFINES);WINCE;_WINDOWS;_USRDLL;AVIANDLL_EXPORTS;$(ARCHFAM);$(_ARCHFAM_);_UNICODE;UNICODE"
+				FavorSizeOrSpeed="1"
+				AdditionalIncludeDirectories="C:\avian\libce;C:\avian\avian\src;C:\avian\wince\msvc\include;&quot;C:\avian\avian\build\windows-i386&quot;"
+				PreprocessorDefinitions="NDEBUG;_WIN32_WCE=$(CEVER);UNDER_CE;$(PLATFORMDEFINES);WINCE;DEBUG;_WINDOWS;_USRDLL;AVIANDLL_EXPORTS;$(ARCHFAM);$(_ARCHFAM_);_UNICODE;UNICODE;AVIAN_VERSION=\&quot;0.6\&quot;;AVIAN_TARGET_ARCH=AVIAN_ARCH_X86;AVIAN_TARGET_PLATFORM=AVIAN_PLATFORM_WINDOWS;USE_ATOMIC_OPERATIONS_;TARGET_BYTES_PER_WORD=4;AVIAN_CLASSPATH=\&quot;[classpathJar]\&quot;;AVIAN_JAVA_HOME=\&quot;\&quot;;AVIAN_EMBED_PREFIX=\&quot;\&quot;;_JNI_IMPLEMENTATION_"
 				RuntimeLibrary="0"
-				UsePrecompiledHeader="2"
+				UsePrecompiledHeader="0"
 				WarningLevel="3"
 				DebugInformationFormat="3"
 			/>
@@ -166,11 +172,13 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalOptions=" /subsystem:windowsce,5.01"
-				OutputFile="$(OutDir)/avian-dll.dll"
+				AdditionalDependencies="zlibce.lib ws2.lib libce.lib"
+				OutputFile="$(OutDir)/jvm.dll"
 				LinkIncremental="1"
+				AdditionalLibraryDirectories="C:\avian\libce\lib;C:\avian\wince\msvc\lib"
 				DelayLoadDLLs="$(NOINHERIT)"
 				GenerateDebugInformation="true"
-				ProgramDatabaseFile="$(OutDir)/avian-dll.pdb"
+				ProgramDatabaseFile="$(OutDir)/avian.pdb"
 				SubSystem="0"
 				StackReserveSize="65536"
 				StackCommitSize="4096"
@@ -178,7 +186,7 @@
 				EnableCOMDATFolding="2"
 				RandomizedBaseAddress="1"
 				DataExecutionPrevention="0"
-				ImportLibrary="$(OutDir)/avian-dll.lib"
+				ImportLibrary="$(OutDir)/avian.lib"
 			/>
 			<Tool
 				Name="VCALinkTool"
@@ -200,7 +208,7 @@
 			/>
 			<DeploymentTool
 				ForceDirty="-1"
-				RemoteDirectory=""
+				RemoteDirectory="\"
 				RegisterOutput="0"
 				AdditionalFiles=""
 			/>
