@@ -2,7 +2,7 @@
 <VisualStudioProject
 	ProjectType="Visual C++"
 	Version="9,00"
-	Name="avian-dll"
+	Name="avian-wince-dll"
 	ProjectGUID="{A8D82471-9134-4308-B7BA-C7E692823276}"
 	RootNamespace="avian-dll"
 	Keyword="Win32Proj"
@@ -25,6 +25,7 @@
 			IntermediateDirectory="build\wince"
 			ConfigurationType="2"
 			CharacterSet="1"
+			BuildLogFile="$(IntDir)\BuildLog-wince-dll.htm"
 			>
 			<Tool
 				Name="VCPreBuildEventTool"
