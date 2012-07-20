@@ -19,6 +19,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "avian-wince-dynamic", "avia
 		{A8D82471-9134-4308-B7BA-C7E692823276} = {A8D82471-9134-4308-B7BA-C7E692823276}
 	EndProjectSection
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "avian-generator", "avian-generator.vcproj", "{9EC038D8-343C-46BE-82AF-8BDC7502CC49}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Mixed Platforms = Debug|Mixed Platforms
@@ -96,6 +98,16 @@ Global
 		{5FAC67B2-A6CC-458A-A339-F57D3332003A}.Release|Windows Mobile 5.0 Pocket PC SDK (ARMV4I).ActiveCfg = Release|Windows Mobile 5.0 Pocket PC SDK (ARMV4I)
 		{5FAC67B2-A6CC-458A-A339-F57D3332003A}.Release|Windows Mobile 5.0 Pocket PC SDK (ARMV4I).Build.0 = Release|Windows Mobile 5.0 Pocket PC SDK (ARMV4I)
 		{5FAC67B2-A6CC-458A-A339-F57D3332003A}.Release|Windows Mobile 5.0 Pocket PC SDK (ARMV4I).Deploy.0 = Release|Windows Mobile 5.0 Pocket PC SDK (ARMV4I)
+		{9EC038D8-343C-46BE-82AF-8BDC7502CC49}.Debug|Mixed Platforms.ActiveCfg = Debug|Win32
+		{9EC038D8-343C-46BE-82AF-8BDC7502CC49}.Debug|Mixed Platforms.Build.0 = Debug|Win32
+		{9EC038D8-343C-46BE-82AF-8BDC7502CC49}.Debug|Win32.ActiveCfg = Debug|Win32
+		{9EC038D8-343C-46BE-82AF-8BDC7502CC49}.Debug|Win32.Build.0 = Debug|Win32
+		{9EC038D8-343C-46BE-82AF-8BDC7502CC49}.Debug|Windows Mobile 5.0 Pocket PC SDK (ARMV4I).ActiveCfg = Debug|Win32
+		{9EC038D8-343C-46BE-82AF-8BDC7502CC49}.Release|Mixed Platforms.ActiveCfg = Release|Win32
+		{9EC038D8-343C-46BE-82AF-8BDC7502CC49}.Release|Mixed Platforms.Build.0 = Release|Win32
+		{9EC038D8-343C-46BE-82AF-8BDC7502CC49}.Release|Win32.ActiveCfg = Release|Win32
+		{9EC038D8-343C-46BE-82AF-8BDC7502CC49}.Release|Win32.Build.0 = Release|Win32
+		{9EC038D8-343C-46BE-82AF-8BDC7502CC49}.Release|Windows Mobile 5.0 Pocket PC SDK (ARMV4I).ActiveCfg = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
