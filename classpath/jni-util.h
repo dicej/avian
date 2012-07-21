@@ -29,6 +29,7 @@
 #endif // not (defined __MINGW32__) || (defined _MSC_VER)
 
 #ifdef _MSC_VER
+
 #  ifdef WINCE
 #    include <windows.h>
 #    include <wince.h>
@@ -89,7 +90,7 @@ throwNew(JNIEnv* e, const char* class_, const char* message, ...)
       va_list list;
       va_start(list, message);
 #ifdef _MSC_VER
-	  vsnprintf_s(buffer, BufferSize - 1, _TRUNCATE, message, list);
+      vsnprintf_s(buffer, BufferSize - 1, _TRUNCATE, message, list);
 #else
       vsnprintf(buffer, BufferSize - 1, message, list);
 #endif
@@ -110,7 +111,7 @@ throwNewErrno(JNIEnv* e, const char* class_)
   const unsigned size = 128;
   char buffer[size];
   strerror_s(buffer, size, errno);
-  throwNew(e, class_, buffer);  
+  throwNew(e, class_, buffer);
 #else
   throwNew(e, class_, strerror(errno));
 #endif
