@@ -125,8 +125,8 @@ atomicCompareAndSwap32(uint32_t* p, uint32_t old, uint32_t new_)
 #ifdef __APPLE__
   return OSAtomicCompareAndSwap32(old, new_, reinterpret_cast<int32_t*>(p));
 #elif WINCE
-  long r = InterlockedCompareExchange((long*)p, new_, old); 
-  return (!r ? true : false);
+  return old == InterlockedCompareExchange
+    (reinterpret_cast<LONG*>(p), new_, old);
 #else
   int r = __kernel_cmpxchg(static_cast<int>(old), static_cast<int>(new_), reinterpret_cast<int*>(p));
   return (!r ? true : false);
