@@ -29,7 +29,11 @@
 #endif // not (defined __MINGW32__) || (defined _MSC_VER)
 
 #ifdef _MSC_VER
-
+#  ifdef WINCE
+#    include <windows.h>
+#    include <wince.h>
+#	 include <errno.h>
+#  endif
 #  define UNUSED
 
 typedef char int8_t;
@@ -85,11 +89,7 @@ throwNew(JNIEnv* e, const char* class_, const char* message, ...)
       va_list list;
       va_start(list, message);
 #ifdef _MSC_VER
-#ifdef WINCE
-	  _vsnprintf(buffer, BufferSize - 1, message, list);      
-#else
 	  vsnprintf_s(buffer, BufferSize - 1, _TRUNCATE, message, list);
-#endif
 #else
       vsnprintf(buffer, BufferSize - 1, message, list);
 #endif
@@ -107,14 +107,10 @@ inline void
 throwNewErrno(JNIEnv* e, const char* class_)
 {
 #ifdef _MSC_VER
-#ifdef WINCE
-  throwNew(e, class_, "");
-#else
   const unsigned size = 128;
   char buffer[size];
   strerror_s(buffer, size, errno);
   throwNew(e, class_, buffer);  
-#endif
 #else
   throwNew(e, class_, strerror(errno));
 #endif
