@@ -96,16 +96,11 @@ namespace {
   
   int descriptor(JNIEnv* e, HANDLE h)
   {
-#ifndef WINCE // FIXME
     int fd = _open_osfhandle(reinterpret_cast<intptr_t>(h), 0);
     if (fd == -1) {
       throwNewErrno(e, "java/io/IOException");
     }
     return fd;
-#else
-    throwNewErrno(e, "java/lang/UnsupportedOperationException");
-	return 0;
-#endif 
   }
 #else
   void makePipe(JNIEnv* e, int p[2])
@@ -548,17 +543,20 @@ Java_java_lang_System_getProperty(JNIEnv* e, jclass, jstring name,
       r = e->NewStringUTF("arm");
 #endif
     } else if (strcmp(chars, "java.io.tmpdir") == 0) {
+	  // FIXME
       //TCHAR buffer[MAX_PATH];
       //GetTempPath(MAX_PATH, buffer);
       //r = e->NewStringUTF(buffer);
 	  r = 0;
     } else if (strcmp(chars, "user.dir") == 0) {
+      // FIXME
       //TCHAR buffer[MAX_PATH];
       //GetCurrentDirectory(MAX_PATH, buffer);
       //r = e->NewStringUTF(buffer);
 	  r = 0;
     } else if (strcmp(chars, "user.home") == 0) {
 #  ifdef _MSC_VER
+      // FIXME
       //WCHAR buffer[MAX_PATH];
       //size_t needed;
       //if (_wgetenv_s(&needed, buffer, MAX_PATH, L"USERPROFILE") == 0) {
