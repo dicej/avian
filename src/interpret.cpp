@@ -2321,7 +2321,7 @@ interpret3(Thread* t, const int base)
     object class_ = resolveClassInPool(t, frameMethod(t, frame), index - 1);
     PROTECT(t, class_);
 
-    int32_t counts[dimensions];
+    int32_t counts[100]; // FIXME
     for (int i = dimensions - 1; i >= 0; --i) {
       counts[i] = popInt(t);
       if (UNLIKELY(counts[i] < 0)) {
@@ -2862,7 +2862,7 @@ pushArguments(Thread* t, object this_, const char* spec, object a)
 }
 
 object
-invoke(Thread* t, object method)
+_invoke(Thread* t, object method)
 {
   PROTECT(t, method);
 
@@ -3100,7 +3100,7 @@ class MyProcessor: public Processor {
       (&byteArrayBody(t, methodSpec(t, method), 0));
     pushArguments(t, this_, spec, arguments);
 
-    return ::invoke(t, method);
+    return _invoke(t, method);
   }
 
   virtual object
@@ -3124,7 +3124,7 @@ class MyProcessor: public Processor {
       (&byteArrayBody(t, methodSpec(t, method), 0));
     pushArguments(t, this_, spec, arguments);
 
-    return ::invoke(t, method);
+    return _invoke(t, method);
   }
 
   virtual object
@@ -3148,7 +3148,7 @@ class MyProcessor: public Processor {
       (&byteArrayBody(t, methodSpec(t, method), 0));
     pushArguments(t, this_, spec, indirectObjects, arguments);
 
-    return ::invoke(t, method);
+    return _invoke(t, method);
   }
 
   virtual object
@@ -3174,7 +3174,7 @@ class MyProcessor: public Processor {
 
     assert(t, ((methodFlags(t, method) & ACC_STATIC) == 0) xor (this_ == 0));
 
-    return ::invoke(t, method);
+    return _invoke(t, method);
   }
 
   virtual object getStackTrace(vm::Thread* t, vm::Thread*) {
