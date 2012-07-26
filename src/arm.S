@@ -70,9 +70,9 @@ GLOBAL(vmJump):
 #define CHECKPOINT_THREAD 4
 #define CHECKPOINT_STACK 24
 
-.globl GLOBAL(vmRun)
+.globl GLOBAL(vmRun1)
 .align 2
-GLOBAL(vmRun):
+GLOBAL(vmRun1):
   // r0: function
   // r1: arguments
   // r2: checkpoint
