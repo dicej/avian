@@ -794,7 +794,7 @@ class MySystem: public System {
     return status;
   }
 
-  virtual FileType stat(const char* name, unsigned* length) {
+  virtual FileType stat1(const char* name, unsigned* length) {
     // Ugly Hack Alert: It seems that the Apple iOS Simulator's stat
     // implementation writes beyond the end of the struct stat we pass
     // it, which can clobber unrelated parts of the stack.  Perhaps
