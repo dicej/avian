@@ -50,7 +50,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				AdditionalIncludeDirectories="C:\avian\avian\src;&quot;C:\Program Files (x86)\Java\jdk1.6.0_25\include&quot;;&quot;C:\Program Files (x86)\Java\jdk1.6.0_25\include\win32&quot;;&quot;C:\avian\avian\build\windows-i386&quot;;C:\avian\win32\msvc\include"
-				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;AVIAN_VERSION=\&quot;0.6\&quot;;AVIAN_TARGET_ARCH=AVIAN_ARCH_X86;AVIAN_TARGET_PLATFORM=AVIAN_PLATFORM_WINDOWS;USE_ATOMIC_OPERATIONS;TARGET_BYTES_PER_WORD=4;AVIAN_CLASSPATH=\&quot;[classpathJar]\&quot;;AVIAN_JAVA_HOME=\&quot;\&quot;;AVIAN_EMBED_PREFIX=\&quot;\&quot;;_JNI_IMPLEMENTATION_"
+				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;AVIAN_VERSION=\&quot;0.6\&quot;;AVIAN_TARGET_ARCH=AVIAN_ARCH_X86;AVIAN_TARGET_FORMAT=AVIAN_FORMAT_PE;USE_ATOMIC_OPERATIONS;TARGET_BYTES_PER_WORD=4;AVIAN_CLASSPATH=\&quot;[classpathJar]\&quot;;AVIAN_JAVA_HOME=\&quot;\&quot;;AVIAN_EMBED_PREFIX=\&quot;\&quot;;_JNI_IMPLEMENTATION_"
 				MinimalRebuild="true"
 				ExceptionHandling="0"
 				BasicRuntimeChecks="3"
@@ -136,7 +136,7 @@
 				Optimization="2"
 				EnableIntrinsicFunctions="true"
 				AdditionalIncludeDirectories="C:\avian\avian\src;&quot;C:\Program Files (x86)\Java\jdk1.6.0_25\include&quot;;&quot;C:\Program Files (x86)\Java\jdk1.6.0_25\include\win32&quot;;&quot;C:\avian\avian\build\windows-i386&quot;;C:\avian\win32\msvc\include"
-				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE;AVIAN_VERSION=\&quot;0.6\&quot;;AVIAN_TARGET_ARCH=AVIAN_ARCH_X86;AVIAN_TARGET_PLATFORM=AVIAN_PLATFORM_WINDOWS;USE_ATOMIC_OPERATIONS;TARGET_BYTES_PER_WORD=4;AVIAN_CLASSPATH=\&quot;[classpathJar]\&quot;;AVIAN_JAVA_HOME=\&quot;\&quot;;AVIAN_EMBED_PREFIX=\&quot;\&quot;;_JNI_IMPLEMENTATION_"
+				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE;AVIAN_VERSION=\&quot;0.6\&quot;;AVIAN_TARGET_ARCH=AVIAN_ARCH_X86;AVIAN_TARGET_FORMAT=AVIAN_FORMAT_PE;USE_ATOMIC_OPERATIONS;TARGET_BYTES_PER_WORD=4;AVIAN_CLASSPATH=\&quot;[classpathJar]\&quot;;AVIAN_JAVA_HOME=\&quot;\&quot;;AVIAN_EMBED_PREFIX=\&quot;\&quot;;_JNI_IMPLEMENTATION_"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
 				UsePrecompiledHeader="0"
@@ -252,10 +252,6 @@
 			</File>
 			<File
 				RelativePath=".\src\util.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\src\vmstart.cpp"
 				>
 			</File>
 			<File
