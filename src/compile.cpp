@@ -205,6 +205,17 @@ class MyThread: public Thread {
     bool methodIsMostRecent;
   };
 
+  class ReferenceFrame {
+   public:
+    ReferenceFrame(ReferenceFrame* next, Reference* reference):
+      next(next),
+      reference(reference)
+    { }
+
+    ReferenceFrame* next;
+    Reference* reference;
+  };
+
   static void doTransition(MyThread* t, void* ip, void* stack,
                            object continuation, MyThread::CallTrace* trace)
   {
@@ -258,6 +269,7 @@ class MyThread: public Thread {
     transition(0),
     traceContext(0),
     stackLimit(0),
+    referenceFrame(0),
     methodLockIsClean(true)
   {
     arch->acquire();
@@ -283,6 +295,7 @@ class MyThread: public Thread {
   Context* transition;
   TraceContext* traceContext;
   uintptr_t stackLimit;
+  ReferenceFrame* referenceFrame;
   bool methodLockIsClean;
 };
 
@@ -2577,13 +2590,25 @@ doubleToFloat(int64_t a)
 int64_t
 doubleToInt(int64_t a)
 {
-  return static_cast<int32_t>(bitsToDouble(a));
+  double f = bitsToDouble(a);
+  switch (fpclassify(f)) {
+  case FP_NAN: return 0;
+  case FP_INFINITE: return signbit(f) ? INT32_MIN : INT32_MAX;
+  default: return f >= INT32_MAX ? INT32_MAX
+      : (f <= INT32_MIN ? INT32_MIN : static_cast<int32_t>(f));
+  }
 }
 
 int64_t
 doubleToLong(int64_t a)
 {
-  return static_cast<int64_t>(bitsToDouble(a));
+  double f = bitsToDouble(a);
+  switch (fpclassify(f)) {
+  case FP_NAN: return 0;
+  case FP_INFINITE: return signbit(f) ? INT64_MIN : INT64_MAX;
+  default: return f >= INT64_MAX ? INT64_MAX
+      : (f <= INT64_MIN ? INT64_MIN : static_cast<int64_t>(f));
+  }
 }
 
 uint64_t
@@ -2725,13 +2750,24 @@ floatToDouble(int32_t a)
 int64_t
 floatToInt(int32_t a)
 {
-  return static_cast<int32_t>(bitsToFloat(a));
+  float f = bitsToFloat(a);
+  switch (fpclassify(f)) {
+  case FP_NAN: return 0;
+  case FP_INFINITE: return signbit(f) ? INT32_MIN : INT32_MAX;
+  default: return f >= INT32_MAX ? INT32_MAX
+      : (f <= INT32_MIN ? INT32_MIN : static_cast<int32_t>(f));
+  }
 }
 
 int64_t
 floatToLong(int32_t a)
 {
-  return static_cast<int64_t>(bitsToFloat(a));
+  float f = bitsToFloat(a);
+  switch (fpclassify(f)) {
+  case FP_NAN: return 0;
+  case FP_INFINITE: return signbit(f) ? INT64_MIN : INT64_MAX;
+  default: return static_cast<int64_t>(f);
+  }
 }
 
 uint64_t
@@ -8779,6 +8815,32 @@ class MyProcessor: public Processor {
     if (r) {
       release(t, reinterpret_cast<Reference*>(r));
     }
+  }
+
+  virtual bool
+  pushLocalFrame(Thread* vmt, unsigned)
+  {
+    MyThread* t = static_cast<MyThread*>(vmt);
+
+    t->referenceFrame = new
+      (t->m->heap->allocate(sizeof(MyThread::ReferenceFrame)))
+      MyThread::ReferenceFrame(t->referenceFrame, t->reference);
+    
+    return true;
+  }
+
+  virtual void
+  popLocalFrame(Thread* vmt)
+  {
+    MyThread* t = static_cast<MyThread*>(vmt);
+
+    MyThread::ReferenceFrame* f = t->referenceFrame;
+    t->referenceFrame = f->next;
+    while (t->reference != f->reference) {
+      vm::dispose(t, t->reference);
+    }
+
+    t->m->heap->free(f, sizeof(MyThread::ReferenceFrame));
   }
 
   virtual object

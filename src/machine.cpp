@@ -2690,6 +2690,8 @@ class HeapClient: public Heap::Client {
   virtual void visitRoots(Heap::Visitor* v) {
     ::visitRoots(m, v);
 
+    m->heap->postVisit();
+
     postVisit(m->rootThread, v);
   }
 
@@ -3667,34 +3669,32 @@ stringUTFChars(Thread* t, object string, unsigned start, unsigned length,
   assert(t, static_cast<unsigned>
          (stringUTFLength(t, string, start, length)) == charsLength);
 
-  if (length) {
-    object data = stringData(t, string);
-    if (objectClass(t, data) == type(t, Machine::ByteArrayType)) {    
-      memcpy(chars,
-             &byteArrayBody(t, data, stringOffset(t, string) + start),
-             length);
-      chars[length] = 0; 
-    } else {
-      int j = 0;
-      for (unsigned i = 0; i < length; ++i) {
-        uint16_t c = charArrayBody
-          (t, data, stringOffset(t, string) + start + i);
-        if(!c) {                // null char
-          chars[j++] = 0;
-        } else if (c < 0x80) {  // ASCII char
-          chars[j++] = static_cast<char>(c);
-        } else if (c < 0x800) { // two-byte char
-          chars[j++] = static_cast<char>(0x0c0 | (c >> 6));
-          chars[j++] = static_cast<char>(0x080 | (c & 0x03f));
-        } else {                // three-byte char
-          chars[j++] = static_cast<char>(0x0e0 | ((c >> 12) & 0x0f));
-          chars[j++] = static_cast<char>(0x080 | ((c >> 6) & 0x03f));
-          chars[j++] = static_cast<char>(0x080 | (c & 0x03f));
-        }
+  object data = stringData(t, string);
+  if (objectClass(t, data) == type(t, Machine::ByteArrayType)) {    
+    memcpy(chars,
+           &byteArrayBody(t, data, stringOffset(t, string) + start),
+           length);
+    chars[length] = 0; 
+  } else {
+    int j = 0;
+    for (unsigned i = 0; i < length; ++i) {
+      uint16_t c = charArrayBody
+        (t, data, stringOffset(t, string) + start + i);
+      if(!c) {                // null char
+        chars[j++] = 0;
+      } else if (c < 0x80) {  // ASCII char
+        chars[j++] = static_cast<char>(c);
+      } else if (c < 0x800) { // two-byte char
+        chars[j++] = static_cast<char>(0x0c0 | (c >> 6));
+        chars[j++] = static_cast<char>(0x080 | (c & 0x03f));
+      } else {                // three-byte char
+        chars[j++] = static_cast<char>(0x0e0 | ((c >> 12) & 0x0f));
+        chars[j++] = static_cast<char>(0x080 | ((c >> 6) & 0x03f));
+        chars[j++] = static_cast<char>(0x080 | (c & 0x03f));
       }
-      chars[j] = 0;
-    }    
-  }
+    }
+    chars[j] = 0;
+  }    
 }
 
 uint64_t

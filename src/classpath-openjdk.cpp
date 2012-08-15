@@ -417,6 +417,8 @@ class MyClasspath : public Classpath {
     sb.append("/lib");
 #elif defined ARCH_x86_64
     sb.append("/lib/amd64");
+#elif defined ARCH_arm
+    sb.append("/lib/arm");
 #else
     // todo: handle other architectures
     sb.append("/lib/i386");
@@ -532,7 +534,7 @@ class MyClasspath : public Classpath {
   virtual void
   resolveNative(Thread* t, object method)
   {
-    if (strcmp(reinterpret_cast<const int8_t*>("sun/font/FontManager"),
+    if (strcmp(reinterpret_cast<const int8_t*>("sun/font/SunFontManager"),
                &byteArrayBody(t, className(t, methodClass(t, method)), 0)) == 0
         and strcmp(reinterpret_cast<const int8_t*>("initIDs"),
                    &byteArrayBody(t, methodName(t, method), 0)) == 0
@@ -2395,13 +2397,6 @@ Avian_sun_misc_Unsafe_staticFieldOffset
 }
 
 extern "C" JNIEXPORT int64_t JNICALL
-Avian_sun_misc_Unsafe_arrayBaseOffset
-(Thread*, object, uintptr_t*)
-{
-  return BytesPerWord * 2;
-}
-
-extern "C" JNIEXPORT int64_t JNICALL
 Avian_sun_misc_Unsafe_arrayIndexScale
 (Thread* t, object, uintptr_t* arguments)
 {
@@ -2518,6 +2513,14 @@ Avian_sun_misc_Unsafe_getLong__Ljava_lang_Object_2J
   int64_t offset; memcpy(&offset, arguments + 2, 8);
 
   return cast<int64_t>(o, offset);
+}
+
+extern "C" JNIEXPORT int64_t JNICALL
+Avian_sun_misc_Unsafe_getDouble__Ljava_lang_Object_2J
+(Thread* t, object method, uintptr_t* arguments)
+{
+  return Avian_sun_misc_Unsafe_getLong__Ljava_lang_Object_2J
+    (t, method, arguments);
 }
 
 extern "C" JNIEXPORT int64_t JNICALL
@@ -2783,32 +2786,6 @@ Avian_sun_misc_Unsafe_park
 }
 
 extern "C" JNIEXPORT void JNICALL
-Avian_sun_misc_Unsafe_copyMemory
-(Thread* t, object, uintptr_t* arguments)
-{
-  object srcBase = reinterpret_cast<object>(arguments[1]);
-  int64_t srcOffset; memcpy(&srcOffset, arguments + 2, 8);
-  object dstBase = reinterpret_cast<object>(arguments[4]);
-  int64_t dstOffset; memcpy(&dstOffset, arguments + 5, 8);
-  int64_t count; memcpy(&count, arguments + 7, 8);
-
-  PROTECT(t, srcBase);
-  PROTECT(t, dstBase);
-
-  ACQUIRE(t, t->m->referenceLock);
-
-  void* src = srcBase
-    ? &cast<uint8_t>(srcBase, srcOffset)
-    : reinterpret_cast<uint8_t*>(srcOffset);
-
-  void* dst = dstBase
-    ? &cast<uint8_t>(dstBase, dstOffset)
-    : reinterpret_cast<uint8_t*>(dstOffset);
-
-  memcpy(dst, src, count);
-}
-
-extern "C" JNIEXPORT void JNICALL
 Avian_sun_misc_Unsafe_monitorEnter
 (Thread* t, object, uintptr_t* arguments)
 {
@@ -3002,6 +2979,8 @@ jvmInitProperties(Thread* t, uintptr_t* arguments)
   local::setProperty(t, method, *properties, "path.separator", ":");
 #  ifdef __APPLE__
   local::setProperty(t, method, *properties, "os.name", "Mac OS X");
+#  elif defined __FreeBSD__
+  local::setProperty(t, method, *properties, "os.name", "FreeBSD");
 #  else // not __APPLE__
   local::setProperty(t, method, *properties, "os.name", "Linux");
 #  endif // not __APPLE__
@@ -3018,6 +2997,8 @@ jvmInitProperties(Thread* t, uintptr_t* arguments)
 
   local::setProperty(t, method, *properties, "java.vm.vendor",
                      "Avian Contributors");
+
+  local::setProperty(t, method, *properties, "java.vm.name","Avian");
 
   local::setProperty
     (t, method, *properties, "java.home",
@@ -3328,6 +3309,10 @@ jvmSleep(Thread* t, uintptr_t* arguments)
 {
   jlong milliseconds; memcpy(&milliseconds, arguments, sizeof(jlong));
 
+  if (milliseconds <= 0) {
+    milliseconds = 1;
+  }
+
   if (threadSleepLock(t, t->javaThread) == 0) {
     object lock = makeJobject(t);
     set(t, t->javaThread, ThreadSleepLock, lock);
@@ -3517,9 +3502,9 @@ extern "C" JNIEXPORT jint JNICALL
 EXPORT(JVM_ClassLoaderDepth)(Thread*) { abort(); }
 
 extern "C" JNIEXPORT jstring JNICALL
-EXPORT(JVM_GetSystemPackage)(Thread*, jstring)
+EXPORT(JVM_GetSystemPackage)(Thread*, jstring s)
 {
-  return 0;
+  return s;
 }
 
 uint64_t

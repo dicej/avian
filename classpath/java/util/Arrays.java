@@ -17,6 +17,23 @@ public class Arrays {
     return asList(a).toString();
   }
 
+  public static String toString(byte[] a) {
+    if (a == null) {
+      return "null";
+    } else {
+      StringBuilder sb = new StringBuilder();
+      sb.append("[");
+      for (int i = 0; i < a.length; ++i) {
+        sb.append(String.valueOf(a[i]));
+        if (i + 1 != a.length) {
+          sb.append(", ");
+        }
+      }
+      sb.append("]");
+      return sb.toString();
+    }
+  }
+
   private static boolean equal(Object a, Object b) {
     return (a == null && b == null) || (a != null && a.equals(b));
   }
@@ -40,6 +57,37 @@ public class Arrays {
       }
       array[i + 1] = t;
     }
+  }
+
+  public static int hashCode(Object[] array) {
+    if(array == null) {
+      return 9023;
+    }
+
+    int hc = 823347;
+    for(Object o : array) {
+      hc += o != null ? o.hashCode() : 54267;
+      hc *= 3;
+    }
+    return hc;
+  }
+
+  public static boolean equals(Object[] a, Object[] b) {
+    if(a == b) {
+      return true;
+    }
+    if(a == null || b == null) {
+      return false;
+    }
+    if(a.length != b.length) {
+      return false;
+    }
+    for(int i = 0; i < a.length; i++) {
+      if(!equal(a[i], b[i])) {
+        return false;
+      }
+    }
+    return true;
   }
 
   public static <T> List<T> asList(final T ... array) {
