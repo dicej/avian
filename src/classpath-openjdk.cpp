@@ -623,6 +623,13 @@ class MyClasspath : public Classpath {
     t->m->processor->invoke
       (t, root(t, Machine::BootLoader), "java/lang/System",
        "initializeSystemClass", "()V", 0);
+
+    t->m->processor->invoke
+      (t, root(t, Machine::BootLoader), "sun/misc/Launcher",
+       "getLauncher", "()Lsun/misc/Launcher;", 0);
+
+    set(t, t->javaThread, ThreadContextClassLoader,
+        root(t, Machine::AppLoader));
   }
 
   virtual const char*
@@ -3109,7 +3116,7 @@ EXPORT(JVM_FreeMemory)()
 extern "C" JNIEXPORT jlong JNICALL
 EXPORT(JVM_MaxMemory)()
 {
-  return 0;
+  return local::globalMachine->heap->limit();
 }
 
 extern "C" JNIEXPORT jint JNICALL
@@ -4671,9 +4678,27 @@ extern "C" JNIEXPORT jfloat JNICALL
 EXPORT(JVM_ConstantPoolGetFloatAt)(Thread*, jobject, jobject, jint)
 { abort(); }
 
+uint64_t
+jvmConstantPoolGetDoubleAt(Thread* t, uintptr_t* arguments)
+{
+  jobject pool = reinterpret_cast<jobject>(arguments[0]);
+  jint index = arguments[1];
+
+  double v; memcpy(&singletonValue(t, *pool, index - 1), &v, 8);
+
+  return doubleToBits(v);
+}
+
 extern "C" JNIEXPORT jdouble JNICALL
-EXPORT(JVM_ConstantPoolGetDoubleAt)(Thread*, jobject, jobject, jint)
-{ abort(); }
+EXPORT(JVM_ConstantPoolGetDoubleAt)(Thread* t, jobject, jobject pool,
+                                    jint index)
+{
+  uintptr_t arguments[] = { reinterpret_cast<uintptr_t>(pool),
+                            static_cast<uintptr_t>(index) };
+
+  return bitsToDouble
+    (run(t, jvmConstantPoolGetDoubleAt, arguments));
+}
 
 extern "C" JNIEXPORT jstring JNICALL
 EXPORT(JVM_ConstantPoolGetStringAt)(Thread*, jobject, jobject, jint)
