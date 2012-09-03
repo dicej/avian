@@ -1,0 +1,91 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<VisualStudioToolFile
+	Name="Arm ASM"
+	Version="8,00"
+	>
+	<Rules>
+		<CustomBuildRule
+			Name="ARMASM"
+			DisplayName="Microsoft ARM assembler"
+			CommandLine="armasm [AllOptions] [AdditionalOptions] [inputs] "
+			Outputs="[$ObjectFileName]"
+			FileExtensions="*.asm"
+			ExecutionDescription="Assembling..."
+			>
+			<Properties>
+				<StringProperty
+					Name="ObjectFileName"
+					DisplayName="Object File Name"
+					PropertyPageName="Object File"
+					Description="Specifies the name of the output object file.     (-o [file])"
+					Switch="-o &quot;[value]&quot;"
+					DefaultValue="$(IntDir)\$(InputName).obj"
+				/>
+				<EnumProperty
+					Name="Arch"
+					DisplayName="Architecture"
+					Description=" set target architecture version"
+					>
+					<Values>
+						<EnumValue
+							Value="0"
+							DisplayName="Default"
+						/>
+						<EnumValue
+							Value="1"
+							Switch="-arch  4"
+							DisplayName="ARM 4"
+						/>
+						<EnumValue
+							Value="2"
+							Switch="-arch  4T"
+							DisplayName="ARM 4T"
+						/>
+						<EnumValue
+							Value="3"
+							Switch="-arch  5"
+							DisplayName="ARM 5"
+						/>
+						<EnumValue
+							Value="4"
+							Switch="-arch  5T"
+							DisplayName="ARM 5T"
+						/>
+						<EnumValue
+							Value="5"
+							Switch="-arch  6"
+							DisplayName="ARM 6"
+						/>
+					</Values>
+				</EnumProperty>
+				<EnumProperty
+					Name="CPU"
+					DisplayName="CPU"
+					Description="set the target ARM core type"
+					>
+					<Values>
+						<EnumValue
+							Value="0"
+							DisplayName="Default"
+						/>
+						<EnumValue
+							Value="1"
+							Switch="-cpu ARM7TM"
+							DisplayName="ARM7TM"
+						/>
+						<EnumValue
+							Value="2"
+							Switch="-cpu ARM720t"
+							DisplayName="ARM720t"
+						/>
+						<EnumValue
+							Value="3"
+							Switch="-cpu ARM920t"
+							DisplayName="ARM920t"
+						/>
+					</Values>
+				</EnumProperty>
+			</Properties>
+		</CustomBuildRule>
+	</Rules>
+</VisualStudioToolFile>
