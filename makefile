@@ -194,6 +194,7 @@ target-cflags = -DTARGET_BYTES_PER_WORD=$(pointer-size)
 common-cflags = $(warnings) -fno-rtti -fno-exceptions -I$(classpath-src) \
 	"-I$(JAVA_HOME)/include" -idirafter $(src) -I$(build) $(classpath-cflags) \
 	-D__STDC_LIMIT_MACROS -D_JNI_IMPLEMENTATION_ -DAVIAN_VERSION=\"$(version)\" \
+	-DAVIAN_INFO="\"$(info)\"" \
 	-DUSE_ATOMIC_OPERATIONS -DAVIAN_JAVA_HOME=\"$(javahome)\" \
 	-DAVIAN_EMBED_PREFIX=\"$(embed-prefix)\" $(target-cflags)
 
@@ -223,6 +224,7 @@ build-lflags = -lz -lpthread -ldl
 
 lflags = $(common-lflags) -lpthread -ldl
 
+soname-flag = -Wl,-soname -Wl,$(so-prefix)jvm$(so-suffix)
 version-script-flag = -Wl,--version-script=openjdk.ld
 
 build-system = posix
@@ -1160,7 +1162,8 @@ ifdef msvc
 		-IMPLIB:$(build)/$(name).lib -MANIFESTFILE:$(@).manifest
 	$(mt) -manifest $(@).manifest -outputresource:"$(@);2"
 else
-	$(ld) $(^) $(version-script-flag)	$(shared) $(lflags) $(bootimage-lflags) \
+	$(ld) $(^) $(version-script-flag) $(soname-flag) \
+		$(shared) $(lflags) $(bootimage-lflags) \
 		-o $(@)
 endif
 	$(strip) $(strip-all) $(@)
