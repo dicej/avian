@@ -273,6 +273,8 @@ killZombies(Thread* t, Thread* o)
 unsigned
 footprint(Thread* t)
 {
+  expect(t, t->criticalLevel == 0);
+
   unsigned n = t->heapOffset + t->heapIndex + t->backupHeapIndex;
 
   for (Thread* c = t->child; c; c = c->peer) {
@@ -591,6 +593,8 @@ postVisit(Thread* t, Heap::Visitor* v)
       = m->tenuredWeakReferences;
     m->tenuredWeakReferences = firstNewTenuredWeakReference;
   }
+
+  m->heap->postVisit();
 
   for (Reference* r = m->jniReferences; r; r = r->next) {
     if (r->weak) {
@@ -1128,7 +1132,7 @@ parseFieldTable(Thread* t, Stream& s, object class_, object pool)
 
   unsigned count = s.read2();
   if (count) {
-    unsigned staticOffset = BytesPerWord * 2;
+    unsigned staticOffset = BytesPerWord * 3;
     unsigned staticCount = 0;
   
     object fieldTable = makeArray(t, count);
@@ -1242,7 +1246,10 @@ parseFieldTable(Thread* t, Stream& s, object class_, object pool)
       uint8_t* body = reinterpret_cast<uint8_t*>
         (&singletonBody(t, staticTable, 0));
 
-      for (unsigned i = 0, offset = 0; i < staticCount; ++i) {
+      memcpy(body, &class_, BytesPerWord);
+      singletonMarkObject(t, staticTable, 0);
+
+      for (unsigned i = 0, offset = BytesPerWord; i < staticCount; ++i) {
         unsigned size = fieldSize(t, RUNTIME_ARRAY_BODY(staticTypes)[i]);
         while (offset % size) {
           ++ offset;
@@ -2689,8 +2696,6 @@ class HeapClient: public Heap::Client {
 
   virtual void visitRoots(Heap::Visitor* v) {
     ::visitRoots(m, v);
-
-    m->heap->postVisit();
 
     postVisit(m->rootThread, v);
   }
