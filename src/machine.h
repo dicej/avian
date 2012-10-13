@@ -112,7 +112,13 @@ const unsigned ThreadBackupHeapSizeInBytes = 2 * 1024;
 const unsigned ThreadBackupHeapSizeInWords
 = ThreadBackupHeapSizeInBytes / BytesPerWord;
 
+#ifdef WINCE
+// we want to collect more frequently on Windows CE due to the limited
+// address space:
+const unsigned ThreadHeapPoolSize = 4;
+#else
 const unsigned ThreadHeapPoolSize = 64;
+#endif
 
 const unsigned FixedFootprintThresholdInBytes
 = ThreadHeapPoolSize * ThreadHeapSizeInBytes;
