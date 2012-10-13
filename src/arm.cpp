@@ -2154,7 +2154,7 @@ class MyArchitecture: public Assembler::Architecture {
   }
 
   virtual bool argumentAlignment() {
-#ifdef __APPLE__
+#if (defined __APPLE__) || (defined WINCE)
     return false;
 #else
     return true;
@@ -2162,7 +2162,7 @@ class MyArchitecture: public Assembler::Architecture {
   }
 
   virtual bool argumentRegisterAlignment() {
-#ifdef __APPLE__
+#if (defined __APPLE__) || (defined WINCE)
     return false;
 #else
     return true;

@@ -157,7 +157,7 @@ dynamicCall(void* function, uintptr_t* arguments, uint8_t* argumentTypes,
             unsigned argumentCount, unsigned argumentsSize UNUSED,
             unsigned returnType)
 {
-#ifdef __APPLE__
+#if (defined __APPLE__) || (defined WINCE)
   const unsigned Alignment = 1;
 #else
   const unsigned Alignment = 2;
