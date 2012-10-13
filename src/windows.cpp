@@ -811,8 +811,8 @@ class MySystem: public System {
   }
 
   virtual const char* toAbsolutePath(Allocator* allocator, const char* name) {
-    if (strncmp(name, "//", 2) == 0
-        or strncmp(name, "\\\\", 2) == 0
+    if (strncmp(name, "/", 1) == 0
+        or strncmp(name, "\\", 1) == 0
         or strncmp(name + 1, ":/", 2) == 0
         or strncmp(name + 1, ":\\", 2) == 0)
     {
