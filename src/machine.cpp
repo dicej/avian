@@ -474,6 +474,25 @@ referenceTargetReachable(Thread* t, Heap::Visitor* v, object* p)
   }
 }
 
+bool
+isFinalizable(Thread* t, object o)
+{
+  return t->m->heap->status(o) == Heap::Unreachable
+    and (classVmFlags
+         (t, static_cast<object>(t->m->heap->follow(objectClass(t, o))))
+         & HasFinalizerFlag);
+}
+
+void
+clearTargetIfFinalizable(Thread* t, object r)
+{
+  if (isFinalizable
+      (t, static_cast<object>(t->m->heap->follow(jreferenceTarget(t, r)))))
+  {
+    jreferenceTarget(t, r) = 0;
+  }
+}
+
 void
 postVisit(Thread* t, Heap::Visitor* v)
 {
@@ -481,6 +500,30 @@ postVisit(Thread* t, Heap::Visitor* v)
   bool major = m->heap->collectionType() == Heap::MajorCollection;
 
   assert(t, m->finalizeQueue == 0);
+
+  m->heap->postVisit();
+
+  for (object p = m->weakReferences; p;) {
+    object r = static_cast<object>(m->heap->follow(p));
+    p = jreferenceVmNext(t, r);
+    clearTargetIfFinalizable(t, r);
+  }
+
+  if (major) {
+    for (object p = m->tenuredWeakReferences; p;) {
+      object r = static_cast<object>(m->heap->follow(p));
+      p = jreferenceVmNext(t, r);
+      clearTargetIfFinalizable(t, r);
+    }
+  }
+
+  for (Reference* r = m->jniReferences; r; r = r->next) {
+    if (r->weak and isFinalizable
+        (t, static_cast<object>(t->m->heap->follow(r->target))))
+    {
+      r->target = 0;
+    }
+  }
 
   object firstNewTenuredFinalizer = 0;
   object lastNewTenuredFinalizer = 0;
@@ -593,8 +636,6 @@ postVisit(Thread* t, Heap::Visitor* v)
       = m->tenuredWeakReferences;
     m->tenuredWeakReferences = firstNewTenuredWeakReference;
   }
-
-  m->heap->postVisit();
 
   for (Reference* r = m->jniReferences; r; r = r->next) {
     if (r->weak) {
@@ -2253,6 +2294,11 @@ updateClassTables(Thread* t, object newClass, object oldClass)
     for (unsigned i = 0; i < arrayLength(t, fieldTable); ++i) {
       set(t, arrayBody(t, fieldTable, i), FieldClass, newClass);
     }
+  }
+
+  object staticTable = classStaticTable(t, newClass);
+  if (staticTable) {
+    set(t, staticTable, SingletonBody, newClass);
   }
 
   if (classFlags(t, newClass) & ACC_INTERFACE) {
@@ -4099,6 +4145,8 @@ resolveSystemClass(Thread* t, object loader, object spec, bool throw_,
 
     if (class_) {
       hashMapInsert(t, classLoaderMap(t, loader), spec, class_, byteArrayHash);
+
+      t->m->classpath->updatePackageMap(t, class_);
     } else if (throw_) {
       throwNew(t, throwType, "%s", &byteArrayBody(t, spec, 0));
     }
@@ -4839,15 +4887,27 @@ parseUtf8(Thread* t, const char* data, unsigned length)
 }
 
 object
-getCaller(Thread* t, unsigned target)
+getCaller(Thread* t, unsigned target, bool skipMethodInvoke)
 {
   class Visitor: public Processor::StackVisitor {
    public:
-    Visitor(Thread* t, unsigned target):
-      t(t), method(0), count(0), target(target)
+    Visitor(Thread* t, unsigned target, bool skipMethodInvoke):
+      t(t), method(0), count(0), target(target),
+      skipMethodInvoke(skipMethodInvoke)
     { }
 
     virtual bool visit(Processor::StackWalker* walker) {
+      if (skipMethodInvoke
+          and methodClass
+          (t, walker->method()) == type(t, Machine::JmethodType)
+          and strcmp
+          (&byteArrayBody(t, methodName(t, walker->method()), 0),
+           reinterpret_cast<const int8_t*>("invoke"))
+          == 0)
+      {
+        return true;
+      }
+
       if (count == target) {
         method = walker->method();
         return false;
@@ -4861,7 +4921,8 @@ getCaller(Thread* t, unsigned target)
     object method;
     unsigned count;
     unsigned target;
-  } v(t, target);
+    bool skipMethodInvoke;
+    } v(t, target, skipMethodInvoke);
 
   t->m->processor->walkStack(t, &v);
 

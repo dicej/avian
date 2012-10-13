@@ -349,48 +349,66 @@ clearInterrupted(Thread*);
 
 class MyClasspath : public Classpath {
  public:
-  static const unsigned BufferSize = 1024;
-
   MyClasspath(System* s, Allocator* allocator, const char* javaHome,
               const char* embedPrefix):
     allocator(allocator), ranNetOnLoad(0), ranManagementOnLoad(0)
   {
     class StringBuilder {
      public:
-      StringBuilder(System* s, char* pointer, unsigned remaining):
-        s(s), pointer(pointer), remaining(remaining)
+      StringBuilder(System* s, Allocator* allocator):
+        s(s),
+        allocator(allocator),
+        bufferSize(1024),
+        buffer(static_cast<char*>(allocator->allocate(bufferSize))),
+        offset(0)
       { }
+
+      void ensure(unsigned capacity) {
+        if (capacity > bufferSize) {
+          unsigned size = max(bufferSize * 2, capacity);
+          char* b = static_cast<char*>(allocator->allocate(size));
+
+          if (offset) {
+            memcpy(b, buffer, offset);
+          }
+
+          allocator->free(buffer, bufferSize);
+          
+          buffer = b;
+          bufferSize = size;
+        }
+      }
 
       void append(const char* append) {
         unsigned length = strlen(append);
-        expect(s, remaining > length);
+        ensure(offset + length + 1);
   
-        strncpy(pointer, append, remaining);
+        strncpy(buffer + offset, append, length + 1);
         
-        remaining -= length;
-        pointer += length;
+        offset += length;
       }
 
       void append(char c) {
-        assert(s, remaining > 1);
+        ensure(2);
         
-        pointer[0] = c;
-        pointer[1] = 0;
+        buffer[offset] = c;
+        buffer[offset + 1] = 0;
 
-        -- remaining;
-        ++ pointer;
+        ++ offset;
       }
 
       System* s;
-      char* pointer;
-      unsigned remaining;
-    } sb(s, buffer, BufferSize);
+      Allocator* allocator;
+      unsigned bufferSize;
+      char* buffer;
+      unsigned offset;
+    } sb(s, allocator);
 
-    this->javaHome = sb.pointer;
+    unsigned javaHomeOffset = sb.offset;
     sb.append(javaHome);
     sb.append('\0');
 
-    this->classpath = sb.pointer;
+    unsigned classpathOffset = sb.offset;
     sb.append(AVIAN_CLASSPATH);
     sb.append(s->pathSeparator());
     sb.append(javaHome);
@@ -409,7 +427,7 @@ class MyClasspath : public Classpath {
     sb.append("/lib/resources.jar");
     sb.append('\0');
 
-    this->libraryPath = sb.pointer;
+    unsigned libraryPathOffset = sb.offset;
     sb.append(javaHome);
 #ifdef PLATFORM_WINDOWS
     sb.append("/bin");
@@ -424,16 +442,24 @@ class MyClasspath : public Classpath {
     sb.append("/lib/i386");
 #endif
     sb.append('\0');
-    
-    this->tzMappings = sb.pointer;
+
+    unsigned tzMappingsOffset = sb.offset;
     sb.append(javaHome);
     sb.append("/lib/tzmappings");
-    this->tzMappingsLength = sb.pointer - tzMappings;
+    this->tzMappingsLength = sb.offset - tzMappingsOffset;
     sb.append('\0');
 
-    this->embedPrefix = sb.pointer;
+    unsigned embedPrefixOffset = sb.offset;
     sb.append(embedPrefix);
-    this->embedPrefixLength = sb.pointer - this->embedPrefix;
+    this->embedPrefixLength = sb.offset - embedPrefixOffset;
+
+    this->javaHome = sb.buffer + javaHomeOffset;
+    this->classpath = sb.buffer + classpathOffset;
+    this->libraryPath = sb.buffer + libraryPathOffset;
+    this->tzMappings = sb.buffer + tzMappingsOffset;
+    this->embedPrefix = sb.buffer + embedPrefixOffset;
+    this->buffer = sb.buffer;
+    this->bufferSize = sb.bufferSize;
   }
 
   virtual object
@@ -639,8 +665,50 @@ class MyClasspath : public Classpath {
   }
 
   virtual void
+  updatePackageMap(Thread* t, object class_)
+  {
+    PROTECT(t, class_);
+
+    if (root(t, Machine::PackageMap) == 0) {
+      setRoot(t, Machine::PackageMap, makeHashMap(t, 0, 0));
+    }
+
+    object className = vm::className(t, class_);
+    if ('[' != byteArrayBody(t, className, 0)) {
+      THREAD_RUNTIME_ARRAY
+        (t, char, packageName, byteArrayLength(t, className));
+
+      char* s = reinterpret_cast<char*>(&byteArrayBody(t, className, 0));
+      char* p = strrchr(s, '/');
+
+      if (p) {
+        int length = (p - s) + 1;
+        memcpy(RUNTIME_ARRAY_BODY(packageName),
+               &byteArrayBody(t, className, 0),
+               length);
+        RUNTIME_ARRAY_BODY(packageName)[length] = 0;
+
+        object key = vm::makeByteArray(t, "%s", packageName);
+
+        hashMapRemove
+          (t, root(t, Machine::PackageMap), key, byteArrayHash,
+           byteArrayEqual);
+
+        object source = classSource(t, class_);
+        if (source == 0) {
+          source = vm::makeByteArray(t, "avian-dummy-package-source");
+        }
+
+        hashMapInsert
+          (t, root(t, Machine::PackageMap), key, source, byteArrayHash);
+      }
+    }
+  }
+
+  virtual void
   dispose()
   { 
+    allocator->free(buffer, bufferSize);
     allocator->free(this, sizeof(*this));
   }
 
@@ -650,6 +718,8 @@ class MyClasspath : public Classpath {
   const char* libraryPath;
   const char* tzMappings;
   const char* embedPrefix;
+  char* buffer;
+  unsigned bufferSize;
   unsigned tzMappingsLength;
   unsigned embedPrefixLength;
   unsigned filePathField;
@@ -664,7 +734,6 @@ class MyClasspath : public Classpath {
   unsigned zipEntryMethodField;
   bool ranNetOnLoad;
   bool ranManagementOnLoad;
-  char buffer[BufferSize];
   JmmInterface jmmInterface;
 };
 
@@ -2337,10 +2406,13 @@ extern "C" JNIEXPORT int64_t JNICALL
 Avian_java_lang_Class_getSuperclass
 (Thread* t, object, uintptr_t* arguments)
 {
-  object super = classSuper
-    (t, jclassVmClass(t, reinterpret_cast<object>(arguments[0])));
-
-  return super ? reinterpret_cast<int64_t>(getJClass(t, super)) : 0;
+  object class_ = jclassVmClass(t, reinterpret_cast<object>(arguments[0]));
+  if (classFlags(t, class_) & ACC_INTERFACE) {
+    return 0;
+  } else {
+    object super = classSuper(t, class_);
+    return super ? reinterpret_cast<int64_t>(getJClass(t, super)) : 0;
+  }
 }
 
 extern "C" JNIEXPORT void
@@ -3531,10 +3603,37 @@ EXPORT(JVM_ClassDepth)(Thread*, jstring) { abort(); }
 extern "C" JNIEXPORT jint JNICALL
 EXPORT(JVM_ClassLoaderDepth)(Thread*) { abort(); }
 
-extern "C" JNIEXPORT jstring JNICALL
-EXPORT(JVM_GetSystemPackage)(Thread*, jstring s)
+uint64_t
+jvmGetSystemPackage(Thread* t, uintptr_t* arguments)
 {
-  return s;
+  jstring s = reinterpret_cast<jstring>(arguments[0]);
+
+  ACQUIRE(t, t->m->classLock);
+
+  THREAD_RUNTIME_ARRAY(t, char, chars, stringLength(t, *s) + 1);
+  stringChars(t, *s, RUNTIME_ARRAY_BODY(chars));
+
+  object key = makeByteArray(t, RUNTIME_ARRAY_BODY(chars));
+
+  object array = hashMapFind
+    (t, root(t, Machine::PackageMap), key, byteArrayHash, byteArrayEqual);
+
+  if (array) {
+    return reinterpret_cast<uintptr_t>
+      (makeLocalReference
+       (t, t->m->classpath->makeString
+        (t, array, 0, byteArrayLength(t, array))));
+  } else {
+    return 0;
+  }
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+EXPORT(JVM_GetSystemPackage)(Thread* t, jstring s)
+{
+  uintptr_t arguments[] = { reinterpret_cast<uintptr_t>(s) };
+
+  return reinterpret_cast<jstring>(run(t, jvmGetSystemPackage, arguments));
 }
 
 uint64_t
@@ -3802,7 +3901,7 @@ EXPORT(JVM_GetCallerClass)(Thread* t, int target)
 {
   ENTER(t, Thread::ActiveState);
 
-  object method = getCaller(t, target);
+  object method = getCaller(t, target, true);
 
   return method ? makeLocalReference
     (t, getJClass(t, methodClass(t, method))) : 0;
@@ -4568,6 +4667,14 @@ jvmInvokeMethod(Thread* t, uintptr_t* arguments)
 
   unsigned returnCode = methodReturnCode(t, vmMethod);
 
+  THREAD_RESOURCE0(t, {
+      if (t->exception) {
+        object exception = t->exception;
+        t->exception = makeThrowable
+          (t, Machine::InvocationTargetExceptionType, 0, 0, exception);
+      }
+    });
+
   object result;
   if (args) {
     result = t->m->processor->invokeArray
@@ -4605,6 +4712,14 @@ jvmNewInstanceFromConstructor(Thread* t, uintptr_t* arguments)
     (t, classMethodTable
      (t, jclassVmClass(t, jconstructorClazz(t, *constructor))),
       jconstructorSlot(t, *constructor));
+
+  THREAD_RESOURCE0(t, {
+      if (t->exception) {
+        object exception = t->exception;
+        t->exception = makeThrowable
+          (t, Machine::InvocationTargetExceptionType, 0, 0, exception);
+      }
+    });
 
   if (args) {
     t->m->processor->invokeArray(t, method, instance, *args);
