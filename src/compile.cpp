@@ -73,6 +73,7 @@ enum Root {
   ObjectPools,
   StaticTableArray,
   VirtualThunks,
+  DynamicThunks,
   ReceiveMethod,
   WindMethod,
   RewindMethod
@@ -81,6 +82,7 @@ enum Root {
 enum ThunkIndex {
   compileMethodIndex,
   compileVirtualMethodIndex,
+  linkDynamicMethodIndex,
   invokeNativeIndex,
   throwArrayIndexOutOfBoundsIndex,
   throwStackOverflowIndex,
@@ -265,6 +267,7 @@ class MyThread: public Thread {
     heapImage(0),
     codeImage(0),
     thunkTable(0),
+    dynamicTable(0),
     trace(0),
     reference(0),
     arch(parent
@@ -293,6 +296,7 @@ class MyThread: public Thread {
   uintptr_t* heapImage;
   uint8_t* codeImage;
   void** thunkTable;
+  void** dynamicTable;
   CallTrace* trace;
   Reference* reference;
   avian::codegen::Architecture* arch;
@@ -1323,6 +1327,91 @@ class Context {
   MyProtector protector;
   MyResource resource;
 };
+
+unsigned&
+dynamicIndex(MyThread* t);
+
+void**&
+dynamicTable(MyThread* t);
+
+void
+updateDynamicTable(MyThread* t, MyThread* o)
+{
+  o->dynamicTable = dynamicTable(t);
+  if (t->peer) updateDynamicTable(static_cast<MyThread*>(t->peer), o);
+  if (t->child) updateDynamicTable(static_cast<MyThread*>(t->child), o);
+}
+
+uintptr_t
+defaultDynamicThunk(MyThread* t);
+
+uintptr_t
+compileVirtualThunk(MyThread* t, unsigned index, unsigned* size,
+                    uintptr_t thunk, const char* baseName);
+
+unsigned
+addDynamic(MyThread* t, object invocation)
+{
+  ACQUIRE(t, t->m->classLock);
+
+  int index = invocationIndex(t, invocation);
+  if (index == -1) {
+    index = dynamicIndex(t)++;
+    invocationIndex(t, invocation) = index;
+
+    unsigned oldCapacity = root(t, Machine::Invocations)
+      ? arrayLength(t, root(t, Machine::Invocations)) : 0;
+
+    if (static_cast<unsigned>(index) >= oldCapacity) {
+      unsigned newCapacity = oldCapacity ? 2 * oldCapacity : 4096;
+
+      void** newTable = static_cast<void**>
+        (t->m->heap->allocate(newCapacity * BytesPerWord));
+
+      object newData = makeArray(t, newCapacity);
+      PROTECT(t, newData);
+
+      object newThunks = makeWordArray(t, newCapacity * 2);
+      PROTECT(t, newThunks);
+
+      if (dynamicTable(t)) {
+        memcpy(newTable, dynamicTable(t), oldCapacity * BytesPerWord);
+
+        memcpy(&arrayBody(t, newData, 0),
+               &arrayBody(t, root(t, Machine::Invocations), 0),
+               oldCapacity);
+
+        mark(t, newData, ArrayBody, oldCapacity);
+
+        memcpy(&wordArrayBody(t, newThunks, 0),
+               &wordArrayBody(t, root(t, DynamicThunks), 0),
+               wordArrayLength(t, root(t, DynamicThunks)) * BytesPerWord);
+      }
+
+      ENTER(t, Thread::ExclusiveState);
+
+      dynamicTable(t) = newTable;        
+      setRoot(t, Machine::Invocations, newData);
+
+      updateDynamicTable(static_cast<MyThread*>(t->m->rootThread), t);
+
+      setRoot(t, DynamicThunks, newThunks);
+    }
+
+    unsigned size;
+    uintptr_t thunk = compileVirtualThunk
+      (t, index, &size, defaultDynamicThunk(t), "dynamicThunk");
+    wordArrayBody(t, root(t, DynamicThunks), index * 2) = thunk;
+    wordArrayBody(t, root(t, DynamicThunks), (index * 2) + 1) = size;
+
+    t->dynamicTable[index] = reinterpret_cast<void*>(thunk);
+
+    set(t, root(t, Machine::Invocations), ArrayBody + (index * BytesPerWord),
+        invocation);
+  }
+
+  return index;
+}
 
 unsigned
 translateLocalIndex(Context* context, unsigned footprint, unsigned index)
@@ -3513,22 +3602,41 @@ compileDirectInvoke(MyThread* t, Frame* frame, object target, bool tailCall)
 unsigned
 methodReferenceParameterFootprint(Thread* t, object reference, bool isStatic)
 {
-  return parameterFootprint
+  unsigned parameterCount;
+  unsigned parameterFootprint;
+  unsigned returnCode;
+  scanMethodSpec
     (t, reinterpret_cast<const char*>
-     (&byteArrayBody(t, referenceSpec(t, reference), 0)), isStatic);
+     (&byteArrayBody(t, referenceSpec(t, reference), 0)), isStatic,
+     &parameterCount, &parameterFootprint, &returnCode);
+
+  return parameterFootprint;
 }
 
 int
 methodReferenceReturnCode(Thread* t, object reference)
 {
   unsigned parameterCount;
+  unsigned parameterFootprint;
   unsigned returnCode;
   scanMethodSpec
     (t, reinterpret_cast<const char*>
-     (&byteArrayBody(t, referenceSpec(t, reference), 0)), &parameterCount,
-     &returnCode);
+     (&byteArrayBody(t, referenceSpec(t, reference), 0)), true,
+     &parameterCount, &parameterFootprint, &returnCode);
 
   return returnCode;
+}
+
+unsigned
+parameterFootprint(Thread* t, const char* spec, bool isStatic)
+{
+  unsigned parameterCount;
+  unsigned parameterFootprint;
+  unsigned returnCode;
+  scanMethodSpec
+    (t, spec, isStatic, &parameterCount, &parameterFootprint, &returnCode);
+
+  return parameterFootprint;
 }
 
 void
@@ -3740,8 +3848,8 @@ isTailCall(MyThread* t, object code, unsigned ip, object caller,
     and (methodReturnCode(t, caller) == VoidField
          or methodReturnCode(t, caller) == calleeReturnCode)
     and returnsNext(t, code, ip)
-    and t->m->classpath->canTailCall
-    (t, caller, calleeClassName, calleeMethodName, calleeMethodSpec);
+    and (calleeClassName == 0 or t->m->classpath->canTailCall
+         (t, caller, calleeClassName, calleeMethodName, calleeMethodSpec));
 }
 
 bool
@@ -3749,8 +3857,8 @@ isTailCall(MyThread* t, object code, unsigned ip, object caller, object callee)
 {
   return isTailCall
     (t, code, ip, caller, methodReturnCode(t, callee),
-     className(t, methodClass(t, callee)), methodName(t, callee),
-     methodSpec(t, callee));
+     methodClass(t, callee) ? className(t, methodClass(t, callee)) : 0,
+     methodName(t, callee), methodSpec(t, callee));
 }
 
 bool
@@ -5394,6 +5502,51 @@ compile(MyThread* t, Frame* initialFrame, unsigned initialIp,
                     (t, reference, false) - 1)),
            reference, false, isReferenceTailCall
            (t, code, ip, context->method, reference));
+      }
+    } break;
+
+    case invokedynamic: {
+      context->leaf = false;
+
+      uint16_t poolIndex = codeReadInt16(t, code, ip);
+      ip += 2;
+
+      object invocation = singletonObject
+        (t, codePool(t, methodCode(t, context->method)), poolIndex - 1);
+
+      PROTECT(t, invocation);
+
+      set(t, invocation, InvocationClass, methodClass(t, context->method));
+
+      unsigned index = addDynamic(t, invocation);
+
+      object template_ = invocationTemplate(t, invocation);
+      unsigned returnCode = methodReturnCode(t, template_);
+      unsigned rSize = resultSize(t, returnCode);
+      unsigned parameterFootprint = methodParameterFootprint(t, template_);
+
+      bool tailCall = isTailCall
+        (t, code, ip, context->method, invocationTemplate(t, invocation));
+
+      // todo: do we need to tell the compiler to add a load barrier
+      // here for VolatileCallSite instances?
+
+      Compiler::Operand* result = c->stackCall
+        (c->memory
+         (c->memory
+          (c->register_(t->arch->thread()), Compiler::AddressType,
+           TARGET_THREAD_DYNAMICTABLE, 0, 1), Compiler::AddressType,
+          index * TargetBytesPerWord, 0, 1),
+         tailCall ? Compiler::TailJump : 0,
+         frame->trace(0, 0),
+         rSize,
+         operandTypeForFieldCode(t, returnCode),
+         parameterFootprint);
+
+      frame->pop(parameterFootprint);
+
+      if (rSize) {
+        pushReturnValue(t, frame, returnCode, result);
       }
     } break;
 
@@ -7617,6 +7770,194 @@ compileVirtualMethod(MyThread* t)
   return reinterpret_cast<uintptr_t>(compileVirtualMethod2(t, class_, index));
 }
 
+object
+makeMethodType(Thread* t, object loader, object method)
+{
+  PROTECT(t, loader);
+  PROTECT(t, method);
+
+  unsigned parameterCount;
+  unsigned returnTypeSpec;
+  object parameterTypes = resolveParameterJTypes
+    (t, loader, methodSpec(t, method), &parameterCount, &returnTypeSpec);
+  PROTECT(t, parameterTypes);
+
+  object returnType = resolveJType
+    (t, loader, reinterpret_cast<char*>
+     (&byteArrayBody(t, methodSpec(t, method), returnTypeSpec)),
+     byteArrayLength(t, methodSpec(t, method)) - 1 - returnTypeSpec);
+
+  return makeMethodType(t, returnType, parameterTypes, 0, 0, 0);
+}
+
+object
+makeMethodHandle(Thread* t, object loader, object method)
+{
+  PROTECT(t, method);
+
+  object type = makeMethodType(t, loader, method);
+
+  return makeMethodHandle(t, 0, method, type);
+}
+
+object
+resolveDynamic(MyThread* t, object invocation)
+{
+  PROTECT(t, invocation);
+
+  object c = invocationClass(t, invocation);
+  PROTECT(t, c);
+
+  object bootstrapArray = arrayBody
+    (t, classAddendumBootstrapMethodTable(t, classAddendum(t, c)),
+     invocationBootstrap(t, invocation));
+
+  PROTECT(t, bootstrapArray);
+
+  object bootstrap = resolve
+    (t, classLoader(t, c), invocationPool(t, invocation), charArrayBody
+     (t, bootstrapArray, 0), findMethodInClass,
+     Machine::NoSuchMethodErrorType);
+  PROTECT(t, bootstrap);
+
+  assert(t, methodParameterCount(t, bootstrap) == 2 + charArrayLength
+         (t, bootstrapArray));
+
+  object lookup = makeLookup
+    (t, c, ACC_PUBLIC | ACC_PRIVATE | ACC_PROTECTED | ACC_STATIC);
+  PROTECT(t, lookup);
+
+  object name = methodName(t, invocationTemplate(t, invocation));
+  name = t->m->classpath->makeString(t, name, 0, byteArrayLength(t, name) - 1);
+  PROTECT(t, name);
+
+  object type = makeMethodType
+    (t, classLoader(t, c), invocationTemplate(t, invocation));
+  PROTECT(t, type);
+
+  object array = makeArray(t, methodParameterCount(t, bootstrap));
+  PROTECT(t, array);
+
+  unsigned argument = 0;
+  set(t, array, ArrayBody + ((argument++) * BytesPerWord), lookup);
+  set(t, array, ArrayBody + ((argument++) * BytesPerWord), name);
+  set(t, array, ArrayBody + ((argument++) * BytesPerWord), type);
+
+  MethodSpecIterator it
+    (t, reinterpret_cast<const char*>
+     (&byteArrayBody(t, methodSpec(t, bootstrap), 0)));
+
+  for (unsigned i = 0; i < argument; ++i) it.next();
+
+  unsigned i = 0;
+  while (it.hasNext()) {
+    switch (*it.next()) {
+    case 'L': {
+      set(t, array, ArrayBody + ((i + argument) * BytesPerWord),
+          singletonObject(t, invocationPool(t, invocation), charArrayBody
+           (t, bootstrapArray, i + 1)));
+    } break;
+
+    case 'I':
+    case 'F': {
+      object box = makeInt
+        (t, singletonValue
+         (t, invocationPool(t, invocation), charArrayBody
+          (t, bootstrapArray, i + 1)));
+
+      set(t, array, ArrayBody + ((i + argument) * BytesPerWord), box);
+    } break;
+
+    case 'J':
+    case 'D': {
+      uint64_t v;
+      memcpy(&v, &singletonValue
+             (t, invocationPool(t, invocation), charArrayBody
+              (t, bootstrapArray, i + 1)), 8);
+
+      object box = makeLong(t, v);
+
+      set(t, array, ArrayBody + ((i + argument) * BytesPerWord), box);
+    } break;
+      
+    default:
+      abort(t);
+    }
+
+    ++ i;
+  }
+
+  object handle = (methodFlags(t, bootstrap) & ACC_STATIC) ? 0 :
+    makeMethodHandle(t, classLoader(t, c), bootstrap);
+
+  return t->m->processor->invokeArray(t, bootstrap, handle, array);
+}
+
+void*
+linkDynamicMethod2(MyThread* t, unsigned index)
+{
+  object invocation = arrayBody(t, root(t, Machine::Invocations), index);
+  
+  object site = invocationSite(t, invocation);
+  
+  loadMemoryBarrier();
+
+  if (site == 0) {
+    t->trace->targetMethod = invocationTemplate(t, invocation);
+
+    THREAD_RESOURCE0(t, static_cast<MyThread*>(t)->trace->targetMethod = 0;);
+
+    PROTECT(t, invocation);
+    
+    site = resolveDynamic(t, invocation);
+    PROTECT(t, site);
+    
+    compile(t, codeAllocator(t), 0, methodHandleMethod
+            (t, callSiteTarget(t, site)));
+  
+    ACQUIRE(t, t->m->classLock);
+
+    if (invocationSite(t, invocation) == 0) {
+      void* address = reinterpret_cast<void*>
+        (methodAddress(t, methodHandleMethod(t, callSiteTarget(t, site))));
+
+      if ((methodFlags(t, methodHandleMethod(t, callSiteTarget(t, site)))
+           & ACC_NATIVE) == 0)
+      {
+        t->dynamicTable[index] = address;
+      }
+    }
+
+    storeStoreMemoryBarrier();
+
+    set(t, invocation, InvocationSite, site);
+    set(t, site, CallSiteInvocation, invocation);
+  }
+
+  object target = methodHandleMethod
+    (t, callSiteTarget(t, invocationSite(t, invocation)));
+
+  fprintf(stderr, "invokedynamic target %s.%s%s\n",
+          &byteArrayBody(t, className(t, methodClass(t, target)), 0),
+          &byteArrayBody(t, methodName(t, target), 0),
+          &byteArrayBody(t, methodSpec(t, target), 0));
+
+  if (methodFlags(t, target) & ACC_NATIVE) {
+    t->trace->nativeMethod = target;
+  }
+
+  return reinterpret_cast<void*>(methodAddress(t, target));
+}
+
+uint64_t
+linkDynamicMethod(MyThread* t)
+{
+  unsigned index = t->virtualCallIndex;
+  t->virtualCallIndex = 0;
+
+  return reinterpret_cast<uintptr_t>(linkDynamicMethod2(t, index));
+}
+
 uint64_t
 invokeNativeFast(MyThread* t, object method, void* function)
 {
@@ -8791,6 +9132,7 @@ class MyProcessor: public Processor {
    public:
     Thunk default_;
     Thunk defaultVirtual;
+    Thunk defaultDynamic;
     Thunk native;
     Thunk aioob;
     Thunk stackOverflow;
@@ -8813,11 +9155,14 @@ class MyProcessor: public Processor {
                         FixedSizeOfArithmeticException),
     codeAllocator(s, 0, 0),
     callTableSize(0),
+    dynamicIndex(0),
     useNativeFeatures(useNativeFeatures),
-    compilationHandlers(0)
+    compilationHandlers(0),
+    dynamicTable(0)
   {
     thunkTable[compileMethodIndex] = voidPointer(local::compileMethod);
     thunkTable[compileVirtualMethodIndex] = voidPointer(compileVirtualMethod);
+    thunkTable[linkDynamicMethodIndex] = voidPointer(linkDynamicMethod);
     thunkTable[invokeNativeIndex] = voidPointer(invokeNative);
     thunkTable[throwArrayIndexOutOfBoundsIndex] = voidPointer
       (throwArrayIndexOutOfBounds);
@@ -9424,6 +9769,18 @@ class MyProcessor: public Processor {
       abort(t);
     }
   }
+
+  virtual void handleCallSiteUpdate(Thread* t, object site)
+  {
+    object invocation = callSiteInvocation(t, site);
+    if (invocation) {
+      object target = methodHandleMethod(t, callSiteTarget(t, site));
+      if ((methodFlags(t, target) & ACC_NATIVE) == 0) {
+        static_cast<MyThread*>(t)->dynamicTable[invocationIndex(t, invocation)]
+          = reinterpret_cast<void*>(methodAddress(t, target));
+      }
+    }
+  }
   
   System* s;
   Allocator* allocator;
@@ -9438,10 +9795,24 @@ class MyProcessor: public Processor {
   ThunkCollection thunks;
   ThunkCollection bootThunks;
   unsigned callTableSize;
+  unsigned dynamicIndex;
   bool useNativeFeatures;
   void* thunkTable[dummyIndex + 1];
   CompilationHandlerList* compilationHandlers;
+  void** dynamicTable;
 };
+
+unsigned&
+dynamicIndex(MyThread* t)
+{
+  return static_cast<MyProcessor*>(t->m->processor)->dynamicIndex;
+}
+
+void**&
+dynamicTable(MyThread* t)
+{
+  return static_cast<MyProcessor*>(t->m->processor)->dynamicTable;
+}
 
 const char*
 stringOrNull(const char* str) {
@@ -9573,15 +9944,16 @@ isThunkUnsafeStack(MyProcessor::Thunk* thunk, void* ip)
 bool
 isThunkUnsafeStack(MyProcessor::ThunkCollection* thunks, void* ip)
 {
-  const unsigned NamedThunkCount = 5;
+  const unsigned NamedThunkCount = 6;
 
   MyProcessor::Thunk table[NamedThunkCount + ThunkCount];
 
   table[0] = thunks->default_;
   table[1] = thunks->defaultVirtual;
-  table[2] = thunks->native;
-  table[3] = thunks->aioob;
-  table[4] = thunks->stackOverflow;
+  table[2] = thunks->defaultDynamic;
+  table[3] = thunks->native;
+  table[4] = thunks->aioob;
+  table[5] = thunks->stackOverflow;
     
   for (unsigned i = 0; i < ThunkCount; ++i) {
     new (table + NamedThunkCount + i) MyProcessor::Thunk
@@ -9600,12 +9972,12 @@ isThunkUnsafeStack(MyProcessor::ThunkCollection* thunks, void* ip)
 }
 
 bool
-isVirtualThunk(MyThread* t, void* ip)
+isVirtualThunk(MyThread* t, void* ip, Root kind)
 {
-  for (unsigned i = 0; i < wordArrayLength(t, root(t, VirtualThunks)); i += 2)
+  for (unsigned i = 0; i < wordArrayLength(t, root(t, kind)); i += 2)
   {
-    uintptr_t start = wordArrayBody(t, root(t, VirtualThunks), i);
-    uintptr_t end = start + wordArrayBody(t, root(t, VirtualThunks), i + 1);
+    uintptr_t start = wordArrayBody(t, root(t, kind), i);
+    uintptr_t end = start + wordArrayBody(t, root(t, kind), i + 1);
 
     if (reinterpret_cast<uintptr_t>(ip) >= start
         and reinterpret_cast<uintptr_t>(ip) < end)
@@ -9615,6 +9987,13 @@ isVirtualThunk(MyThread* t, void* ip)
   }
 
   return false;
+}
+
+bool
+isVirtualThunk(MyThread* t, void* ip)
+{
+  return isVirtualThunk(t, ip, VirtualThunks)
+    or isVirtualThunk(t, ip, DynamicThunks);
 }
 
 bool
@@ -9920,6 +10299,8 @@ findThunks(MyThread* t, BootImage* image, uint8_t* code)
   p->bootThunks.default_ = thunkToThunk(image->thunks.default_, code);
   p->bootThunks.defaultVirtual
     = thunkToThunk(image->thunks.defaultVirtual, code);
+  p->bootThunks.defaultDynamic
+    = thunkToThunk(image->thunks.defaultDynamic, code);
   p->bootThunks.native = thunkToThunk(image->thunks.native, code);
   p->bootThunks.aioob = thunkToThunk(image->thunks.aioob, code);
   p->bootThunks.stackOverflow
@@ -10093,6 +10474,62 @@ compileCall(MyThread* t, Context* c, ThunkIndex index, bool call = true)
 }
 
 void
+compileDefaultThunk(MyThread* t, FixedAllocator* allocator,
+                    MyProcessor::Thunk* thunk, const char* name,
+                    ThunkIndex thunkIndex, bool hasTarget)
+{
+  Context context(t);
+  avian::codegen::Assembler* a = context.assembler;
+
+  if (hasTarget) {
+    lir::Register class_(t->arch->virtualCallTarget());
+    lir::Memory virtualCallTargetSrc
+      (t->arch->stack(),
+       (t->arch->frameFooterSize() + t->arch->frameReturnAddressSize())
+       * TargetBytesPerWord);
+
+    a->apply(lir::Move, OperandInfo
+             (TargetBytesPerWord, lir::MemoryOperand, &virtualCallTargetSrc),
+             OperandInfo(TargetBytesPerWord, lir::RegisterOperand, &class_));
+
+    lir::Memory virtualCallTargetDst
+      (t->arch->thread(), TARGET_THREAD_VIRTUALCALLTARGET);
+
+    a->apply(lir::Move, OperandInfo
+             (TargetBytesPerWord, lir::RegisterOperand, &class_), OperandInfo
+             (TargetBytesPerWord, lir::MemoryOperand, &virtualCallTargetDst));
+  }
+
+  lir::Register index(t->arch->virtualCallIndex());
+  lir::Memory virtualCallIndex
+    (t->arch->thread(), TARGET_THREAD_VIRTUALCALLINDEX);
+
+  a->apply(lir::Move, OperandInfo
+           (TargetBytesPerWord, lir::RegisterOperand, &index), OperandInfo
+           (TargetBytesPerWord, lir::MemoryOperand, &virtualCallIndex));
+    
+  a->saveFrame(TARGET_THREAD_STACK, TARGET_THREAD_IP);
+
+  thunk->frameSavedOffset = a->length();
+
+  lir::Register thread(t->arch->thread());
+  a->pushFrame(1, TargetBytesPerWord, lir::RegisterOperand, &thread);
+
+  compileCall(t, &context, thunkIndex);
+  
+  a->popFrame(t->arch->alignFrameSize(1));
+
+  lir::Register result(t->arch->returnLow());
+  a->apply(lir::Jump,
+           OperandInfo(TargetBytesPerWord, lir::RegisterOperand, &result));
+
+  thunk->length = a->endBlock(false)->resolve(0, 0);
+
+  thunk->start = finish(t, allocator, a, name, thunk->length);
+}
+
+
+void
 compileThunks(MyThread* t, FixedAllocator* allocator)
 {
   MyProcessor* p = processor(t);
@@ -10121,54 +10558,13 @@ compileThunks(MyThread* t, FixedAllocator* allocator)
       (t, allocator, a, "default", p->thunks.default_.length);
   }
 
-  { Context context(t);
-    avian::codegen::Assembler* a = context.assembler;
-    
-    lir::Register class_(t->arch->virtualCallTarget());
-    lir::Memory virtualCallTargetSrc
-      (t->arch->stack(),
-       (t->arch->frameFooterSize() + t->arch->frameReturnAddressSize())
-       * TargetBytesPerWord);
+  compileDefaultThunk
+    (t, allocator, &(p->thunks.defaultVirtual), "defaultVirtual",
+     compileVirtualMethodIndex, true);
 
-    a->apply(lir::Move,
-             OperandInfo(TargetBytesPerWord, lir::MemoryOperand, &virtualCallTargetSrc),
-             OperandInfo(TargetBytesPerWord, lir::RegisterOperand, &class_));
-
-    lir::Memory virtualCallTargetDst
-      (t->arch->thread(), TARGET_THREAD_VIRTUALCALLTARGET);
-
-    a->apply(lir::Move,
-             OperandInfo(TargetBytesPerWord, lir::RegisterOperand, &class_),
-             OperandInfo(TargetBytesPerWord, lir::MemoryOperand, &virtualCallTargetDst));
-
-    lir::Register index(t->arch->virtualCallIndex());
-    lir::Memory virtualCallIndex
-      (t->arch->thread(), TARGET_THREAD_VIRTUALCALLINDEX);
-
-    a->apply(lir::Move,
-             OperandInfo(TargetBytesPerWord, lir::RegisterOperand, &index),
-             OperandInfo(TargetBytesPerWord, lir::MemoryOperand, &virtualCallIndex));
-    
-    a->saveFrame(TARGET_THREAD_STACK, TARGET_THREAD_IP);
-
-    p->thunks.defaultVirtual.frameSavedOffset = a->length();
-
-    lir::Register thread(t->arch->thread());
-    a->pushFrame(1, TargetBytesPerWord, lir::RegisterOperand, &thread);
-
-    compileCall(t, &context, compileVirtualMethodIndex);
-  
-    a->popFrame(t->arch->alignFrameSize(1));
-
-    lir::Register result(t->arch->returnLow());
-    a->apply(lir::Jump,
-             OperandInfo(TargetBytesPerWord, lir::RegisterOperand, &result));
-
-    p->thunks.defaultVirtual.length = a->endBlock(false)->resolve(0, 0);
-
-    p->thunks.defaultVirtual.start = finish
-      (t, allocator, a, "defaultVirtual", p->thunks.defaultVirtual.length);
-  }
+  compileDefaultThunk
+    (t, allocator, &(p->thunks.defaultDynamic), "defaultDynamic",
+     linkDynamicMethodIndex, false);
 
   { Context context(t);
     avian::codegen::Assembler* a = context.assembler;
@@ -10277,6 +10673,8 @@ compileThunks(MyThread* t, FixedAllocator* allocator)
     image->thunks.default_ = thunkToThunk(p->thunks.default_, imageBase);
     image->thunks.defaultVirtual = thunkToThunk
       (p->thunks.defaultVirtual, imageBase);
+    image->thunks.defaultDynamic = thunkToThunk
+      (p->thunks.defaultDynamic, imageBase);
     image->thunks.native = thunkToThunk(p->thunks.native, imageBase);
     image->thunks.aioob = thunkToThunk(p->thunks.aioob, imageBase);
     image->thunks.stackOverflow = thunkToThunk
@@ -10311,6 +10709,13 @@ defaultVirtualThunk(MyThread* t)
 }
 
 uintptr_t
+defaultDynamicThunk(MyThread* t)
+{
+  return reinterpret_cast<uintptr_t>
+    (processor(t)->thunks.defaultDynamic.start);
+}
+
+uintptr_t
 nativeThunk(MyThread* t)
 {
   return reinterpret_cast<uintptr_t>(processor(t)->thunks.native.start);
@@ -10342,7 +10747,8 @@ unresolved(MyThread* t, uintptr_t methodAddress)
 }
 
 uintptr_t
-compileVirtualThunk(MyThread* t, unsigned index, unsigned* size)
+compileVirtualThunk(MyThread* t, unsigned index, unsigned* size,
+                    uintptr_t thunk, const char* baseName)
 {
   Context context(t);
   avian::codegen::Assembler* a = context.assembler;
@@ -10354,10 +10760,11 @@ compileVirtualThunk(MyThread* t, unsigned index, unsigned* size)
            OperandInfo(TargetBytesPerWord, lir::ConstantOperand, &indexConstant),
            OperandInfo(TargetBytesPerWord, lir::RegisterOperand, &indexRegister));
   
-  avian::codegen::ResolvedPromise defaultVirtualThunkPromise(defaultVirtualThunk(t));
-  lir::Constant thunk(&defaultVirtualThunkPromise);
+  avian::codegen::ResolvedPromise thunkPromise(thunk);
+  lir::Constant thunkConstant(&thunkPromise);
   a->apply(lir::Jump,
-           OperandInfo(TargetBytesPerWord, lir::ConstantOperand, &thunk));
+           OperandInfo(TargetBytesPerWord, lir::ConstantOperand,
+                       &thunkConstant));
 
   *size = a->endBlock(false)->resolve(0, 0);
 
@@ -10367,15 +10774,14 @@ compileVirtualThunk(MyThread* t, unsigned index, unsigned* size)
   a->setDestination(start);
   a->write();
 
-  const char* const virtualThunkBaseName = "virtualThunk";
-  const size_t virtualThunkBaseNameLength = strlen(virtualThunkBaseName);
+  const size_t baseNameLength = strlen(baseName);
   const size_t maxIntStringLength = 10;
 
-  THREAD_RUNTIME_ARRAY(t, char, virtualThunkName, virtualThunkBaseNameLength + maxIntStringLength);
+  THREAD_RUNTIME_ARRAY(t, char, name, baseNameLength + maxIntStringLength);
 
-  sprintf(RUNTIME_ARRAY_BODY(virtualThunkName), "%s%d", virtualThunkBaseName, index);
+  sprintf(RUNTIME_ARRAY_BODY(name), "%s%d", baseName, index);
 
-  logCompile(t, start, *size, 0, RUNTIME_ARRAY_BODY(virtualThunkName), 0);
+  logCompile(t, start, *size, 0, RUNTIME_ARRAY_BODY(name), 0);
 
   return reinterpret_cast<uintptr_t>(start);
 }
@@ -10399,7 +10805,8 @@ virtualThunk(MyThread* t, unsigned index)
 
   if (wordArrayBody(t, root(t, VirtualThunks), index * 2) == 0) {
     unsigned size;
-    uintptr_t thunk = compileVirtualThunk(t, index, &size);
+    uintptr_t thunk = compileVirtualThunk
+      (t, index, &size, defaultVirtualThunk(t), "virtualThunk");
     wordArrayBody(t, root(t, VirtualThunks), index * 2) = thunk;
     wordArrayBody(t, root(t, VirtualThunks), (index * 2) + 1) = size;
   }

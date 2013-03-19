@@ -150,6 +150,7 @@ enum OpCode {
   invokespecial = 0xb7,
   invokestatic = 0xb8,
   invokevirtual = 0xb6,
+  invokedynamic = 0xba,
   ior = 0x80,
   irem = 0x70,
   ireturn = 0xac,
@@ -242,7 +243,22 @@ enum Constant {
   CONSTANT_Long = 5,
   CONSTANT_Double = 6,
   CONSTANT_NameAndType = 12,
-  CONSTANT_Utf8 = 1
+  CONSTANT_Utf8 = 1,
+  CONSTANT_MethodHandle = 15,
+  CONSTANT_MethodType = 16,
+  CONSTANT_InvokeDynamic = 18
+};
+
+enum {
+  REF_getField = 1,
+  REF_getStatic = 2,
+  REF_putField = 3,
+  REF_putStatic = 4,
+  REF_invokeVirtual = 5,
+  REF_invokeStatic = 6,
+  REF_invokeSpecial = 7,
+  REF_newInvokeSpecial = 8,
+  REF_invokeInterface = 9
 };
 
 const unsigned ACC_PUBLIC       = 1 <<  0;

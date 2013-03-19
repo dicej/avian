@@ -945,7 +945,7 @@ parsePoolEntry(Thread* t, Stream& s, uint32_t* index, object pool, unsigned i)
       unsigned si = s.read2() - 1;
       parsePoolEntry(t, s, index, pool, si);
         
-      object value = makeReference(t, 0, singletonObject(t, pool, si), 0);
+      object value = makeReference(t, 0, 0, singletonObject(t, pool, si), 0);
       set(t, pool, SingletonBody + (i * BytesPerWord), value);
 
       if(DebugClassReader) {
@@ -1004,7 +1004,7 @@ parsePoolEntry(Thread* t, Stream& s, uint32_t* index, object pool, unsigned i)
       object nameAndType = singletonObject(t, pool, nti);
 
       object value = makeReference
-          (t, class_, pairFirst(t, nameAndType), pairSecond(t, nameAndType));
+        (t, 0, class_, pairFirst(t, nameAndType), pairSecond(t, nameAndType));
       set(t, pool, SingletonBody + (i * BytesPerWord), value);
 
       if(DebugClassReader) {
@@ -1012,6 +1012,66 @@ parsePoolEntry(Thread* t, Stream& s, uint32_t* index, object pool, unsigned i)
       }
     }
   } return 1;
+
+  case CONSTANT_MethodHandle:
+    if (singletonObject(t, pool, i) == 0) {
+      unsigned kind = s.read1();
+      unsigned ri = s.read2() - 1;
+
+      parsePoolEntry(t, s, index, pool, ri);
+
+      object value = singletonObject(t, pool, ri);
+
+      fprintf(stderr, "%d %s.%s%s\n", kind,
+              &byteArrayBody(t, referenceClass(t, value), 0),
+              &byteArrayBody(t, referenceName(t, value), 0),
+              &byteArrayBody(t, referenceSpec(t, value), 0));
+
+      value = makeReference
+        (t, kind, referenceClass(t, value), referenceName(t, value),
+         referenceSpec(t, value));
+
+      set(t, pool, SingletonBody + (i * BytesPerWord), value);
+    } return 1;
+
+  case CONSTANT_MethodType:
+    if (singletonObject(t, pool, i) == 0) {
+      unsigned ni = s.read2() - 1;
+
+      parsePoolEntry(t, s, index, pool, ni);
+
+      set(t, pool, SingletonBody + (i * BytesPerWord),
+          singletonObject(t, pool, ni));
+    } return 1;
+
+  case CONSTANT_InvokeDynamic:
+    if (singletonObject(t, pool, i) == 0) {
+      unsigned bootstrap = s.read2();
+      unsigned nti = s.read2() - 1;
+
+      parsePoolEntry(t, s, index, pool, nti);
+
+      object nameAndType = singletonObject(t, pool, nti);
+
+      const char* specString = reinterpret_cast<const char*>
+        (&byteArrayBody(t, pairSecond(t, nameAndType), 0));
+
+      unsigned parameterCount;
+      unsigned parameterFootprint;
+      unsigned returnCode;
+      scanMethodSpec
+        (t, specString, true, &parameterCount, &parameterFootprint,
+         &returnCode);
+
+      object template_ = makeMethod
+        (t, 0, returnCode, parameterCount, parameterFootprint, 0, 0, 0, 0,
+         pairFirst(t, nameAndType), pairSecond(t, nameAndType), 0, 0, 0);
+
+      object value = makeInvocation
+        (t, bootstrap, -1, 0, pool, template_, 0);
+
+      set(t, pool, SingletonBody + (i * BytesPerWord), value);
+    } return 1;
 
   default: abort(t);
   }
@@ -1037,7 +1097,8 @@ parsePool(Thread* t, Stream& s)
     for (unsigned i = 0; i < count; ++i) {
       index[i] = s.position();
 
-      switch (s.read1()) {
+      int c = s.read1();
+      switch (c) {
       case CONSTANT_Class:
       case CONSTANT_String:
         singletonMarkObject(t, pool, i);
@@ -1078,7 +1139,26 @@ parsePool(Thread* t, Stream& s)
         s.skip(s.read2());
         break;
 
-      default: abort(t);
+      case CONSTANT_MethodHandle:
+        singletonMarkObject(t, pool, i);
+        s.skip(3);
+        break;
+
+      case CONSTANT_MethodType:
+        singletonMarkObject(t, pool, i);
+        s.skip(2);
+        break;
+
+      case CONSTANT_InvokeDynamic:
+        singletonMarkObject(t, pool, i);
+        s.skip(4);
+        break;
+
+      default:
+        fprintf(stderr, "unexpected constant pool tag: %d\n", c);
+        abort(t);
+        throwNew(t, Machine::ClassFormatErrorType,
+                 "unexpected constant pool tag: %d", c);
       }
     }
 
@@ -1123,7 +1203,7 @@ getClassAddendum(Thread* t, object class_, object pool)
   if (addendum == 0) {
     PROTECT(t, class_);
 
-    addendum = makeClassAddendum(t, pool, 0, 0, 0, 0, 0);
+    addendum = makeClassAddendum(t, pool, 0, 0, 0, 0, 0, 0);
     set(t, class_, ClassAddendum, addendum);
   }
   return addendum;
@@ -2061,15 +2141,18 @@ parseMethodTable(Thread* t, Stream& s, object class_, object pool)
         (&byteArrayBody(t, singletonObject(t, pool, spec - 1), 0));
 
       unsigned parameterCount;
+      unsigned parameterFootprint;
       unsigned returnCode;
-      scanMethodSpec(t, specString, &parameterCount, &returnCode);
+      scanMethodSpec
+        (t, specString, flags & ACC_STATIC, &parameterCount,
+         &parameterFootprint, &returnCode);
 
       object method =  t->m->processor->makeMethod
         (t,
          0, // vm flags
          returnCode,
          parameterCount,
-         parameterFootprint(t, specString, flags & ACC_STATIC),
+         parameterFootprint,
          flags,
          0, // offset
          singletonObject(t, pool, name - 1),
@@ -2323,6 +2406,26 @@ parseAttributeTable(Thread* t, Stream& s, object class_, object pool)
 
       object addendum = getClassAddendum(t, class_, pool);
       set(t, addendum, AddendumAnnotationTable, body);
+    } else if (vm::strcmp(reinterpret_cast<const int8_t*>("BootstrapMethods"),
+                          &byteArrayBody(t, name, 0)) == 0)
+    {
+      unsigned count = s.read2();
+      object array = makeArray(t, count);
+      PROTECT(t, array);
+
+      for (unsigned i = 0; i < count; ++i) {
+        unsigned reference = s.read2() - 1;
+        unsigned argumentCount = s.read2();
+        object element = makeCharArray(t, 1 + argumentCount);
+        charArrayBody(t, element, 0) = reference;
+        for (unsigned ai = 0; ai < argumentCount; ++ai) {
+          charArrayBody(t, element, 1 + ai) = s.read2() - 1;
+        }
+        set(t, array, ArrayBody + (i * BytesPerWord), element);
+      }
+
+      object addendum = getClassAddendum(t, class_, pool);
+      set(t, addendum, ClassAddendumBootstrapMethodTable, array);
     } else {
       s.skip(length);
     }
@@ -2966,7 +3069,7 @@ invokeLoadClass(Thread* t, uintptr_t* arguments)
   object method = reinterpret_cast<object>(arguments[0]);
   object loader = reinterpret_cast<object>(arguments[1]);
   object specString = reinterpret_cast<object>(arguments[2]);
-
+ 
   return reinterpret_cast<uintptr_t>
     (t->m->processor->invoke(t, method, loader, specString));
 }
@@ -3142,7 +3245,7 @@ Machine::dispose()
   heap->free(properties, sizeof(const char*) * propertyCount);
 
   static_cast<HeapClient*>(heapClient)->dispose();
-
+ 
   heap->free(this, sizeof(*this));
 }
 
@@ -4034,6 +4137,17 @@ object
 parseClass(Thread* t, object loader, const uint8_t* data, unsigned size,
            Machine::Type throwType)
 {
+  if (false) {
+    static int number = 0;
+    char path[64];
+    sprintf(path, "/tmp/avian-%d.class", number++);
+    FILE* out = vm::fopen(path, "wb");
+    if (out) {
+      fwrite(data, size, 1, out);
+      fclose(out);
+    }
+  }
+
   PROTECT(t, loader);
 
   class Client: public Stream::Client {
@@ -4620,29 +4734,6 @@ findInHierarchyOrNull(Thread* t, object class_, object name, object spec,
   return o;
 }
 
-unsigned
-parameterFootprint(Thread* t, const char* s, bool static_)
-{
-  unsigned footprint = 0;
-  for (MethodSpecIterator it(t, s); it.hasNext();) {
-    switch (*it.next()) {
-    case 'J':
-    case 'D':
-      footprint += 2;
-      break;
-
-    default:
-      ++ footprint;
-      break;        
-    }
-  }
-
-  if (not static_) {
-    ++ footprint;
-  }
-  return footprint;
-}
-
 void
 addFinalizer(Thread* t, object target, void (*finalize)(Thread*, object))
 {
@@ -5159,6 +5250,162 @@ populateMultiArray(Thread* t, object array, int32_t* counts,
     
     populateMultiArray(t, a, counts, index + 1, dimensions);
   }
+}
+
+object
+resolveClassBySpec(Thread* t, object loader, const char* spec,
+                   unsigned specLength)
+{
+  switch (*spec) {
+  case 'L': {
+    THREAD_RUNTIME_ARRAY(t, char, s, specLength - 1);
+    memcpy(RUNTIME_ARRAY_BODY(s), spec + 1, specLength - 2);
+    RUNTIME_ARRAY_BODY(s)[specLength - 2] = 0;
+    return resolveClass(t, loader, RUNTIME_ARRAY_BODY(s));
+  }
+  
+  case '[': {
+    THREAD_RUNTIME_ARRAY(t, char, s, specLength + 1);
+    memcpy(RUNTIME_ARRAY_BODY(s), spec, specLength);
+    RUNTIME_ARRAY_BODY(s)[specLength] = 0;
+    return resolveClass(t, loader, RUNTIME_ARRAY_BODY(s));
+  }
+
+  default:
+    return primitiveClass(t, *spec);
+  }
+}
+
+object
+resolveJType(Thread* t, object loader, const char* spec, unsigned specLength)
+{
+  return getJClass(t, resolveClassBySpec(t, loader, spec, specLength));
+}
+
+object
+resolveParameterTypes(Thread* t, object loader, object spec,
+                      unsigned* parameterCount, unsigned* returnTypeSpec)
+{
+  PROTECT(t, loader);
+  PROTECT(t, spec);
+
+  object list = 0;
+  PROTECT(t, list);
+
+  unsigned offset = 1;
+  unsigned count = 0;
+  while (byteArrayBody(t, spec, offset) != ')') {
+    switch (byteArrayBody(t, spec, offset)) {
+    case 'L': {
+      unsigned start = offset;
+      ++ offset;
+      while (byteArrayBody(t, spec, offset) != ';') ++ offset;
+      ++ offset;
+
+      object type = resolveClassBySpec
+        (t, loader, reinterpret_cast<char*>(&byteArrayBody(t, spec, start)),
+         offset - start);
+      
+      list = makePair(t, type, list);
+
+      ++ count;
+    } break;
+  
+    case '[': {
+      unsigned start = offset;
+      while (byteArrayBody(t, spec, offset) == '[') ++ offset;
+      switch (byteArrayBody(t, spec, offset)) {
+      case 'L':
+        ++ offset;
+        while (byteArrayBody(t, spec, offset) != ';') ++ offset;
+        ++ offset;
+        break;
+
+      default:
+        ++ offset;
+        break;
+      }
+      
+      object type = resolveClassBySpec
+        (t, loader, reinterpret_cast<char*>(&byteArrayBody(t, spec, start)),
+         offset - start);
+      
+      list = makePair(t, type, list);
+      ++ count;
+    } break;
+
+    default:
+      list = makePair
+        (t, primitiveClass(t, byteArrayBody(t, spec, offset)), list);
+      ++ offset;
+      ++ count;
+      break;
+    }
+  }
+
+  *parameterCount = count;
+  *returnTypeSpec = offset + 1;
+  return list;
+}
+
+object
+resolveParameterJTypes(Thread* t, object loader, object spec,
+                       unsigned* parameterCount, unsigned* returnTypeSpec)
+{
+  object list = resolveParameterTypes
+    (t, loader, spec, parameterCount, returnTypeSpec);
+
+  PROTECT(t, list);
+  
+  object array = makeObjectArray
+    (t, type(t, Machine::JclassType), *parameterCount);
+  PROTECT(t, array);
+
+  for (int i = *parameterCount - 1; i >= 0; --i) {
+    object c = getJClass(t, pairFirst(t, list));
+    set(t, array, ArrayBody + (i * BytesPerWord), c);
+    list = pairSecond(t, list);
+  }
+
+  return array;
+}
+
+object
+resolveExceptionJTypes(Thread* t, object loader, object addendum)
+{
+  if (addendum == 0 or methodAddendumExceptionTable(t, addendum) == 0) {
+    return makeObjectArray(t, type(t, Machine::JclassType), 0);
+  }
+
+  PROTECT(t, loader);
+  PROTECT(t, addendum);
+
+  object array = makeObjectArray
+    (t, type(t, Machine::JclassType),
+     shortArrayLength(t, methodAddendumExceptionTable(t, addendum)));
+  PROTECT(t, array);
+
+  for (unsigned i = 0; i < shortArrayLength
+         (t, methodAddendumExceptionTable(t, addendum)); ++i)
+  {
+    uint16_t index = shortArrayBody
+      (t, methodAddendumExceptionTable(t, addendum), i) - 1;
+
+    object o = singletonObject(t, addendumPool(t, addendum), index);
+
+    if (objectClass(t, o) == type(t, Machine::ReferenceType)) {
+      o = resolveClass(t, loader, referenceName(t, o));
+    
+      set(t, addendumPool(t, addendum), SingletonBody + (index * BytesPerWord),
+          o);
+    }
+
+    o = getJClass(t, o);
+
+    set(t, array, ArrayBody + (i * BytesPerWord), o);
+  }
+
+  return array;
 }
 
 void

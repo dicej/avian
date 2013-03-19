@@ -1234,10 +1234,11 @@ class Machine {
     VirtualFileFinders,
     VirtualFiles,
     ArrayInterfaceTable,
-    ThreadTerminated
+    ThreadTerminated,
+    Invocations
   };
 
-  static const unsigned RootCount = ThreadTerminated + 1;
+  static const unsigned RootCount = Invocations + 1;
 
   Machine(System* system, Heap* heap, Finder* bootFinder, Finder* appFinder,
           Processor* processor, Classpath* classpath, const char** properties,
@@ -2510,16 +2511,33 @@ fieldSize(Thread* t, object field)
 }
 
 inline void
-scanMethodSpec(Thread* t, const char* s, unsigned* parameterCount,
+scanMethodSpec(Thread* t, const char* s, bool static_,
+               unsigned* parameterCount, unsigned* parameterFootprint,
                unsigned* returnCode)
 {
   unsigned count = 0;
+  unsigned footprint = 0;
   MethodSpecIterator it(t, s);
-  for (; it.hasNext(); it.next()) {
+  while (it.hasNext()) {
     ++ count;
+    switch (*it.next()) {
+    case 'J':
+    case 'D':
+      footprint += 2;
+      break;
+
+    default:
+      ++ footprint;
+      break;        
+    }
+  }
+
+  if (not static_) {
+    ++ footprint;
   }
 
   *parameterCount = count;
+  *parameterFootprint = footprint;
   *returnCode = fieldCode(t, *it.returnSpec());
 }
 
@@ -2810,6 +2828,12 @@ findMethodOrNull(Thread* t, object class_, const char* name, const char* spec)
 }
 
 inline object
+findMethodOrNull(Thread* t, object class_, object name, object spec)
+{
+  return findInHierarchyOrNull(t, class_, name, spec, findMethodInClass);
+}
+
+inline object
 findVirtualMethod(Thread* t, object method, object class_)
 {
   return arrayBody(t, classVirtualTable(t, class_), methodOffset(t, method));
@@ -2849,9 +2873,6 @@ objectArrayBody(Thread* t UNUSED, object array, unsigned index)
                             (t, t->m->types, Machine::ArrayType)));
   return fieldAtOffset<object>(array, ArrayBody + (index * BytesPerWord));
 }
-
-unsigned
-parameterFootprint(Thread* t, const char* s, bool static_);
 
 void
 addFinalizer(Thread* t, object target, void (*finalize)(Thread*, object));
@@ -3567,16 +3588,16 @@ resolveClassInPool(Thread* t, object method, unsigned index,
 }
 
 inline object
-resolve(Thread* t, object loader, object method, unsigned index,
+resolve(Thread* t, object loader, object pool, unsigned index,
         object (*find)(vm::Thread*, object, object, object),
         Machine::Type errorType, bool throw_ = true)
 {
-  object o = singletonObject(t, codePool(t, methodCode(t, method)), index);
+  object o = singletonObject(t, pool, index);
 
   loadMemoryBarrier();  
 
   if (objectClass(t, o) == type(t, Machine::ReferenceType)) {
-    PROTECT(t, method);
+    PROTECT(t, pool);
 
     object reference = o;
     PROTECT(t, reference);
@@ -3591,8 +3612,7 @@ resolve(Thread* t, object loader, object method, unsigned index,
       if (o) {
         storeStoreMemoryBarrier();
 
-        set(t, codePool(t, methodCode(t, method)),
-            SingletonBody + (index * BytesPerWord), o);
+        set(t, pool, SingletonBody + (index * BytesPerWord), o);
       }
     } else {
       o = 0;
@@ -3606,8 +3626,8 @@ inline object
 resolveField(Thread* t, object loader, object method, unsigned index,
              bool throw_ = true)
 {
-  return resolve(t, loader, method, index, findFieldInClass,
-                 Machine::NoSuchFieldErrorType, throw_);
+  return resolve(t, loader, codePool(t, methodCode(t, method)), index,
+                 findFieldInClass, Machine::NoSuchFieldErrorType, throw_);
 }
 
 inline object
@@ -3708,8 +3728,8 @@ inline object
 resolveMethod(Thread* t, object loader, object method, unsigned index,
                    bool throw_ = true)
 {
-  return resolve(t, loader, method, index, findMethodInClass,
-                 Machine::NoSuchMethodErrorType, throw_);
+  return resolve(t, loader, codePool(t, methodCode(t, method)), index,
+                 findMethodInClass, Machine::NoSuchMethodErrorType, throw_);
 }
 
 inline object
@@ -3862,6 +3882,24 @@ unregisterNatives(Thread* t, object c)
 void
 populateMultiArray(Thread* t, object array, int32_t* counts,
                    unsigned index, unsigned dimensions);
+
+object
+resolveClassBySpec(Thread* t, object loader, const char* spec,
+                   unsigned specLength);
+
+object
+resolveJType(Thread* t, object loader, const char* spec, unsigned specLength);
+
+object
+resolveParameterTypes(Thread* t, object loader, object spec,
+                      unsigned* parameterCount, unsigned* returnTypeSpec);
+
+object
+resolveParameterJTypes(Thread* t, object loader, object spec,
+                       unsigned* parameterCount, unsigned* returnTypeSpec);
+
+object
+resolveExceptionJTypes(Thread* t, object loader, object addendum);
 
 object
 getCaller(Thread* t, unsigned target, bool skipMethodInvoke = false);

@@ -179,6 +179,9 @@ class Processor {
   walkContinuationBody(Thread* t, Heap::Walker* w, object o, unsigned start)
   = 0;
 
+  virtual void
+  handleCallSiteUpdate(Thread* t, object site) = 0;
+
   object
   invoke(Thread* t, object method, object this_, ...)
   {

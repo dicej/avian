@@ -14,4 +14,5 @@ public class ClassAddendum extends Addendum {
   public Object[] interfaceTable;
   public Object[] innerClassTable;
   public Object[] methodTable;
+  public Object[] bootstrapMethodTable;
 }

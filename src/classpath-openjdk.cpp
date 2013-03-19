@@ -352,7 +352,7 @@ object
 makeJfield(Thread* t, object vmField, int index = -1);
 
 void
-interceptFileOperations(Thread*, bool);
+interceptMethods(Thread*, bool);
 
 void
 clearInterrupted(Thread*);
@@ -654,7 +654,7 @@ class MyClasspath : public Classpath {
   interceptMethods(Thread* t UNUSED)
   {
 #ifdef AVIAN_OPENJDK_SRC
-    interceptFileOperations(t, false);
+    local::interceptMethods(t, false);
 #endif
   }
 
@@ -677,7 +677,7 @@ class MyClasspath : public Classpath {
              "threadTerminated", "(Ljava/lang/Thread;)V"));
 
 #ifdef AVIAN_OPENJDK_SRC
-    interceptFileOperations(t, true);
+    local::interceptMethods(t, true);
 #else // not AVIAN_OPENJDK_SRC
     expect(t, loadLibrary(t, libraryPath, "verify", true, true));
     expect(t, loadLibrary(t, libraryPath, "java", true, true));
@@ -1907,6 +1907,28 @@ getBootstrapResources(Thread* t, object, uintptr_t* arguments)
   }
 }
 
+void JNICALL
+callSiteSetTargetVolatile(Thread* t, object, uintptr_t* arguments)
+{
+  object site = reinterpret_cast<object>(arguments[0]);
+  PROTECT(t, site);
+
+  object handle = reinterpret_cast<object>(arguments[1]);
+  PROTECT(t, handle);
+  
+  ACQUIRE(t, t->m->classLock);
+
+  set(t, site, CallSiteTarget, handle);
+
+  t->m->processor->handleCallSiteUpdate(t, site);
+}
+
+void JNICALL
+callSiteSetTargetNormal(Thread* t, object method, uintptr_t* arguments)
+{
+  callSiteSetTargetVolatile(t, method, arguments);
+}
+
 extern "C" JNIEXPORT jint JNICALL
 net_JNI_OnLoad(JavaVM*, void*);
 
@@ -1972,7 +1994,7 @@ loadLibrary(Thread* t, object, uintptr_t* arguments)
 }
 
 void
-interceptFileOperations(Thread* t, bool updateRuntimeData)
+interceptMethods(Thread* t, bool updateRuntimeData)
 {
   MyClasspath* cp = static_cast<MyClasspath*>(t->m->classpath);
 
@@ -2135,6 +2157,14 @@ interceptFileOperations(Thread* t, bool updateRuntimeData)
   intercept(t, type(t, Machine::ClassLoaderType), "getBootstrapResources",
             "(Ljava/lang/String;)Ljava/util/Enumeration;",
             voidPointer(getBootstrapResources), updateRuntimeData);
+
+  intercept(t, type(t, Machine::CallSiteType), "setTargetNormal",
+            "(Ljava/lang/invoke/MethodHandle;)V",
+            voidPointer(callSiteSetTargetNormal), updateRuntimeData);
+
+  intercept(t, type(t, Machine::CallSiteType), "setTargetVolatile",
+            "(Ljava/lang/invoke/MethodHandle;)V",
+            voidPointer(callSiteSetTargetVolatile), updateRuntimeData);
 }
 
 object
@@ -2556,6 +2586,101 @@ makeClasspath(System* s, Allocator* allocator, const char* javaHome,
 }
 
 } // namespace vm
+
+extern "C" JNIEXPORT void JNICALL
+Avian_java_lang_invoke_MethodHandleNatives_registerNatives
+(Thread*, object, uintptr_t*)
+{
+  // ignore
+}
+
+extern "C" JNIEXPORT int64_t JNICALL
+Avian_java_lang_invoke_MethodHandleNatives_getConstant
+(Thread*, object, uintptr_t*)
+{
+  return 0;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Avian_java_lang_invoke_MethodHandleNatives_init__Ljava_lang_invoke_MethodType_2
+(Thread*, object, uintptr_t*)
+{
+  // ignore
+}
+
+extern "C" JNIEXPORT void JNICALL
+Avian_java_lang_invoke_MethodHandleNatives_resolve
+(Thread* t, object, uintptr_t* arguments)
+{
+  object name = reinterpret_cast<object>(arguments[0]);
+  PROTECT(t, name);
+
+  object typeToSpec = resolveMethod
+    (t, root(t, Machine::BootLoader), "avian/OpenJDK", "typeToSpec",
+     "(Ljava/lang/Class;[Ljava/lang/Class;)[B");
+
+  object type = memberNameType(t, name);
+
+  object spec = t->m->processor->invoke
+    (t, typeToSpec, 0, methodTypeRtype(t, type), methodTypePtypes(t, type));
+  PROTECT(t, spec);
+
+  object bytes = makeByteArray(t, stringUTFLength(t, memberNameName(t, name)));
+
+  stringUTFChars
+    (t, memberNameName(t, name), reinterpret_cast<char*>
+     (&byteArrayBody(t, bytes, 0)), byteArrayLength(t, bytes));
+
+  object member = findMethodOrNull
+    (t, jclassVmClass(t, memberNameClazz(t, name)), bytes, spec);
+
+  if (member) {
+    const unsigned IS_METHOD = 0x10000;
+
+    memberNameVmindex(t, name) = 0;
+    memberNameFlags(t, name) = methodFlags(t, member) | IS_METHOD;
+    set(t, name, MemberNameVmtarget, member);
+  }
+}
+
+extern "C" JNIEXPORT int64_t JNICALL
+Avian_java_lang_invoke_MethodHandleNatives_getMembers
+(Thread*, object, uintptr_t*)
+{
+  return 0;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Avian_java_lang_invoke_MethodHandleNatives_init__Ljava_lang_invoke_DirectMethodHandle_2Ljava_lang_Object_2ZLjava_lang_Class_2
+(Thread* t, object, uintptr_t* arguments)
+{
+  object handle = reinterpret_cast<object>(arguments[0]);
+
+  directMethodHandleVmindex(t, handle) = 0;
+
+  set(t, handle, MethodHandleMethod, memberNameVmtarget
+      (t, reinterpret_cast<object>(arguments[1])));
+}
+
+extern "C" JNIEXPORT void JNICALL
+Avian_java_lang_invoke_MethodHandleNatives_init__Ljava_lang_invoke_AdapterMethodHandle_2Ljava_lang_invoke_MethodHandle_2I
+(Thread* t, object, uintptr_t* arguments)
+{
+  object handle = reinterpret_cast<object>(arguments[0]);
+
+  set(t, handle, MethodHandleMethod, methodHandleMethod
+      (t, reinterpret_cast<object>(arguments[1])));
+}
+
+extern "C" JNIEXPORT void JNICALL
+Avian_java_lang_invoke_MethodHandleNatives_init__Ljava_lang_invoke_BoundMethodHandle_2Ljava_lang_Object_2I
+(Thread* t, object, uintptr_t* arguments)
+{
+  object handle = reinterpret_cast<object>(arguments[0]);
+
+  set(t, handle, MethodHandleMethod, methodHandleMethod
+      (t, reinterpret_cast<object>(arguments[1])));
+}
 
 extern "C" JNIEXPORT int64_t JNICALL
 Avian_java_lang_Class_getSuperclass

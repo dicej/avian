@@ -17,6 +17,7 @@ import java.security.AllPermission;
 import java.security.Permissions;
 import java.security.ProtectionDomain;
 import java.security.cert.Certificate;
+import java.io.ByteArrayOutputStream;
 
 public class OpenJDK {  
   public static ProtectionDomain getProtectionDomain(VMClass c) {
@@ -60,5 +61,37 @@ public class OpenJDK {
     } catch (ClassNotFoundException e) {
       return null;
     }
+  }
+
+  private static final char[] Primitives = "VZBCSIFJD".toCharArray();
+  private static final int PrimitiveFlag = 1 << 5;
+
+  private static void write(ByteArrayOutputStream out, Class t) {
+    VMClass c = SystemClassLoader.vmClass(t);
+    if ((c.vmFlags & PrimitiveFlag) != 0) {
+      for (char p: Primitives) {
+        if (c == Classes.primitiveClass(p)) {
+          out.write(p);
+        }
+      }
+    } else if (c.name[0] == '[') {
+      out.write(c.name, 0, c.name.length - 1);
+    } else {
+      out.write('L');
+      out.write(c.name, 0, c.name.length - 1);
+      out.write(';');
+    }
+  }
+
+  public static byte[] typeToSpec(Class returnType, Class[] parameterTypes) {
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+    out.write('(');
+    for (Class t: parameterTypes) {
+      write(out, t);
+    }
+    out.write(')');
+    write(out, returnType);
+    out.write(0);
+    return out.toByteArray();
   }
 }
