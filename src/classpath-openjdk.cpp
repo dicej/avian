@@ -2596,9 +2596,15 @@ Avian_java_lang_invoke_MethodHandleNatives_registerNatives
 
 extern "C" JNIEXPORT int64_t JNICALL
 Avian_java_lang_invoke_MethodHandleNatives_getConstant
-(Thread*, object, uintptr_t*)
+(Thread*, object, uintptr_t* arguments)
 {
-  return 0;
+  unsigned GC_CONV_OP_IMPLEMENTED_MASK = 2;
+
+  if (arguments[0] == GC_CONV_OP_IMPLEMENTED_MASK) {
+    return ~0;
+  } else {
+    return 0;
+  }
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -2615,30 +2621,58 @@ Avian_java_lang_invoke_MethodHandleNatives_resolve
   object name = reinterpret_cast<object>(arguments[0]);
   PROTECT(t, name);
 
-  object typeToSpec = resolveMethod
-    (t, root(t, Machine::BootLoader), "avian/OpenJDK", "typeToSpec",
-     "(Ljava/lang/Class;[Ljava/lang/Class;)[B");
-
-  object type = memberNameType(t, name);
-
-  object spec = t->m->processor->invoke
-    (t, typeToSpec, 0, methodTypeRtype(t, type), methodTypePtypes(t, type));
-  PROTECT(t, spec);
-
-  object bytes = makeByteArray(t, stringUTFLength(t, memberNameName(t, name)));
+  object bytes = makeByteArray
+    (t, stringUTFLength(t, memberNameName(t, name)) + 1);
+  PROTECT(t, bytes);
 
   stringUTFChars
     (t, memberNameName(t, name), reinterpret_cast<char*>
-     (&byteArrayBody(t, bytes, 0)), byteArrayLength(t, bytes));
+     (&byteArrayBody(t, bytes, 0)), byteArrayLength(t, bytes) - 1);
+
+  object spec = 0;
+  PROTECT(t, spec);
+
+  // todo: check for the MethodHandle.PolymorphicSignature annotation
+  // instead of a hard-coded set of methods here (or, better yet,
+  // check for that when loading the class and set a vm flag on the
+  // method so we only have to do it once):
+  bool polymorphicSignature = strcmp
+    (reinterpret_cast<const char*>
+     (&byteArrayBody
+      (t, className(t, jclassVmClass(t, memberNameClazz(t, name))), 0)),
+     "java/lang/invoke/MethodHandle") == 0
+    and (strcmp(reinterpret_cast<const char*>(&byteArrayBody(t, bytes, 0)),
+                "invoke") == 0
+         or strcmp(reinterpret_cast<const char*>(&byteArrayBody(t, bytes, 0)),
+                   "invokeExact") == 0);
+
+  if (polymorphicSignature) {
+    spec = makeByteArray(t, "([Ljava/lang/Object;)Ljava/lang/Object;");
+  } else {
+    object typeToSpec = resolveMethod
+      (t, root(t, Machine::BootLoader), "avian/OpenJDK", "typeToSpec",
+       "(Ljava/lang/Class;[Ljava/lang/Class;)[B");
+
+    object type = memberNameType(t, name);
+
+    spec = t->m->processor->invoke
+      (t, typeToSpec, 0, methodTypeRtype(t, type), methodTypePtypes(t, type));
+  }
 
   object member = findMethodOrNull
     (t, jclassVmClass(t, memberNameClazz(t, name)), bytes, spec);
+
+  // fprintf(stderr, "member %p found for %s.%s%s\n", member, &byteArrayBody
+  //         (t, className(t, jclassVmClass(t, memberNameClazz(t, name))), 0),
+  //         &byteArrayBody(t, bytes, 0),
+  //         &byteArrayBody(t, spec, 0));
 
   if (member) {
     const unsigned IS_METHOD = 0x10000;
 
     memberNameVmindex(t, name) = 0;
-    memberNameFlags(t, name) = methodFlags(t, member) | IS_METHOD;
+    memberNameFlags(t, name) = (methodFlags(t, member) | IS_METHOD)
+      & (polymorphicSignature ? ~0xc0 : ~0);
     set(t, name, MemberNameVmtarget, member);
   }
 }
@@ -2883,6 +2917,26 @@ Avian_sun_misc_Unsafe_getIntVolatile
   int32_t result = fieldAtOffset<int32_t>(o, offset);
   loadMemoryBarrier();
   return result;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Avian_sun_misc_Unsafe_putIntVolatile
+(Thread*, object, uintptr_t* arguments)
+{
+  object o = reinterpret_cast<object>(arguments[1]);
+  int64_t offset; memcpy(&offset, arguments + 2, 8);
+  int32_t value = arguments[4];
+  
+  storeStoreMemoryBarrier();
+  fieldAtOffset<int32_t>(o, offset) = value;
+  storeLoadMemoryBarrier();
+}
+
+extern "C" JNIEXPORT void JNICALL
+Avian_sun_misc_Unsafe_putOrderedInt
+(Thread* t, object method, uintptr_t* arguments)
+{
+  Avian_sun_misc_Unsafe_putIntVolatile(t, method, arguments);
 }
 
 extern "C" JNIEXPORT int64_t JNICALL

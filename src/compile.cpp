@@ -7786,8 +7786,13 @@ makeMethodType(Thread* t, object loader, object method)
     (t, loader, reinterpret_cast<char*>
      (&byteArrayBody(t, methodSpec(t, method), returnTypeSpec)),
      byteArrayLength(t, methodSpec(t, method)) - 1 - returnTypeSpec);
+  PROTECT(t, returnType);
 
-  return makeMethodType(t, returnType, parameterTypes, 0, 0, 0);
+  object make = resolveMethod
+    (t, type(t, Machine::MethodTypeType), "makeImpl",
+     "(Ljava/lang/Class;[Ljava/lang/Class;Z)Ljava/lang/invoke/MethodType;");
+
+  return t->m->processor->invoke(t, make, 0, returnType, parameterTypes, true);
 }
 
 object
