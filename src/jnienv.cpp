@@ -251,7 +251,7 @@ GetArrayLength(Thread* t, jarray array)
 {
   ENTER(t, Thread::ActiveState);
 
-  return fieldAtOffset<uintptr_t>(*array, BytesPerWord);
+  return fieldAtOffset<uintptr_t>(*array, ObjectHeaderInBytes);
 }
 
 uint64_t
@@ -290,7 +290,7 @@ newStringUTF(Thread* t, uintptr_t* arguments)
   return reinterpret_cast<uint64_t>
     (makeLocalReference
      (t, t->m->classpath->makeString
-      (t, array, 0, fieldAtOffset<uintptr_t>(array, BytesPerWord) - 1)));
+      (t, array, 0, fieldAtOffset<uintptr_t>(array, ObjectHeaderInBytes) - 1)));
 }
 
 jstring JNICALL
@@ -3172,7 +3172,7 @@ GetPrimitiveArrayCritical(Thread* t, jarray array, jboolean* isCopy)
 
   expect(t, *array);
 
-  return reinterpret_cast<uintptr_t*>(*array) + 2;
+  return reinterpret_cast<uintptr_t*>(*array) + (ArrayBody / BytesPerWord);
 }
 
 void JNICALL
