@@ -106,6 +106,8 @@ const bool DebugReferences = false;
 
 const bool AbortOnOutOfMemoryError = false;
 
+const unsigned ObjectHeaderInBytes = BytesPerWord + ObjectTagInBytes;
+
 const uintptr_t HashTakenMark = 1;
 const uintptr_t ExtendedMark = 2;
 const uintptr_t FixedMark = 3;
@@ -2840,15 +2842,15 @@ findInterfaceMethod(Thread* t, object method, object class_)
 inline unsigned
 objectArrayLength(Thread* t UNUSED, object array)
 {
-  assert(t, classFixedSize(t, objectClass(t, array)) == BytesPerWord * 2);
+  assert(t, classFixedSize(t, objectClass(t, array)) == ArrayBody);
   assert(t, classArrayElementSize(t, objectClass(t, array)) == BytesPerWord);
-  return fieldAtOffset<uintptr_t>(array, BytesPerWord);
+  return fieldAtOffset<uintptr_t>(array, ObjectHeaderInBytes);
 }
 
 inline object&
 objectArrayBody(Thread* t UNUSED, object array, unsigned index)
 {
-  assert(t, classFixedSize(t, objectClass(t, array)) == BytesPerWord * 2);
+  assert(t, classFixedSize(t, objectClass(t, array)) == ArrayBody);
   assert(t, classArrayElementSize(t, objectClass(t, array)) == BytesPerWord);
   assert(t, classObjectMask(t, objectClass(t, array))
          == classObjectMask(t, arrayBody
@@ -3395,11 +3397,14 @@ methodVirtual(Thread* t, object method)
     and byteArrayBody(t, methodName(t, method), 0) != '<';
 }
 
+const unsigned SingletonHeaderInWords
+= (ObjectHeaderInBytes + BytesPerWord) / BytesPerWord;
+
 inline unsigned
 singletonMaskSize(unsigned count, unsigned bitsPerWord)
 {
   if (count) {
-    return ceilingDivide(count + 2, bitsPerWord);
+    return ceilingDivide(count + SingletonHeaderInWords, bitsPerWord);
   }
   return 0;
 }
@@ -3415,7 +3420,7 @@ singletonMaskSize(Thread* t, object singleton)
 {
   unsigned length = singletonLength(t, singleton);
   if (length) {
-    return ceilingDivide(length + 2, BitsPerWord + 1);
+    return ceilingDivide(length + SingletonHeaderInWords, BitsPerWord + 1);
   }
   return 0;
 }
@@ -3437,8 +3442,8 @@ singletonMask(Thread* t, object singleton)
 inline void
 singletonMarkObject(uint32_t* mask, unsigned index)
 {
-  mask[(index + 2) / 32]
-    |= (static_cast<uint32_t>(1) << ((index + 2) % 32));
+  mask[(index + SingletonHeaderInWords) / 32]
+    |= (static_cast<uint32_t>(1) << ((index + SingletonHeaderInWords) % 32));
 }
 
 inline void
@@ -3452,8 +3457,10 @@ singletonIsObject(Thread* t, object singleton, unsigned index)
 {
   assert(t, index < singletonCount(t, singleton));
 
-  return (singletonMask(t, singleton)[(index + 2) / 32]
-          & (static_cast<uint32_t>(1) << ((index + 2) % 32))) != 0;
+  return (singletonMask(t, singleton)[(index + SingletonHeaderInWords) / 32]
+          & (static_cast<uint32_t>(1)
+             << ((index + SingletonHeaderInWords) % 32)))
+    != 0;
 }
 
 inline object&

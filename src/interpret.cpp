@@ -914,7 +914,7 @@ interpret3(Thread* t, const int base)
   case arraylength: {
     object array = popObject(t);
     if (LIKELY(array)) {
-      pushInt(t, fieldAtOffset<uintptr_t>(array, BytesPerWord));
+      pushInt(t, fieldAtOffset<uintptr_t>(array, ObjectHeaderInBytes));
     } else {
       exception = makeThrowable(t, Machine::NullPointerExceptionType);
       goto throw_;

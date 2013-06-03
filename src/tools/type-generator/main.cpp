@@ -44,6 +44,8 @@ namespace local {
 
 const unsigned BytesPerWord = POINTER_SIZE;
 
+const unsigned ObjectHeaderInBytes = BytesPerWord + ObjectTagInBytes;
+
 inline unsigned
 pad(unsigned size, unsigned alignment)
 {
@@ -643,7 +645,7 @@ class MemberIterator {
     members(0),
     member(0),
     index_(-1),
-    offset_(BytesPerWord),
+    offset_(ObjectHeaderInBytes),
     size_(0),
     padding_(0),
     alignment_(BytesPerWord)
@@ -1278,7 +1280,7 @@ typeOffset(Object* type, Object* super)
     return typeBodyOffset(super, typeOffset(super, typeSuper(super)));
   } else {
     return (type->type == Object::Type ?
-            cons(Number::make(BytesPerWord), 0) : 0);
+            cons(Number::make(ObjectHeaderInBytes), 0) : 0);
   }
 }
 
@@ -1331,7 +1333,7 @@ writeAccessors(Output* out, Object* declarations)
 unsigned
 typeFixedSize(Object* type)
 {
-  unsigned length = BytesPerWord;
+  unsigned length = ObjectHeaderInBytes;
   for (MemberIterator it(type); it.hasMore();) {
     Object* m = it.next();
     switch (m->type) {

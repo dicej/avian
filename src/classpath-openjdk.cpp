@@ -3794,7 +3794,7 @@ EXPORT(JVM_GetArrayLength)(Thread* t, jobject array)
 {
   ENTER(t, Thread::ActiveState);
 
-  return fieldAtOffset<uintptr_t>(*array, BytesPerWord);
+  return fieldAtOffset<uintptr_t>(*array, ObjectHeaderInBytes);
 }
 
 uint64_t
@@ -4801,7 +4801,8 @@ jvmConstantPoolGetUTF8At(Thread* t, uintptr_t* arguments)
   return reinterpret_cast<uint64_t>
     (makeLocalReference
      (t, t->m->classpath->makeString
-      (t, array, 0, fieldAtOffset<uintptr_t>(array, BytesPerWord) - 1)));
+      (t, array, 0, fieldAtOffset<uintptr_t>
+       (array, ObjectHeaderInBytes) - 1)));
 }
 
 extern "C" JNIEXPORT jstring JNICALL

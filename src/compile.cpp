@@ -8561,12 +8561,13 @@ class ArgumentList {
       
       case 'J':
       case 'D':
-        addLong(fieldAtOffset<int64_t>(objectArrayBody(t, arguments, index++), 8));
+        addLong(fieldAtOffset<int64_t>(objectArrayBody(t, arguments, index++),
+                                       pad(ObjectHeaderInBytes, 8)));
         break;
 
       default:
         addInt(fieldAtOffset<int32_t>(objectArrayBody(t, arguments, index++),
-                             BytesPerWord));
+                                      ObjectHeaderInBytes));
         break;
       }
     }
