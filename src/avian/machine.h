@@ -3548,24 +3548,35 @@ resolveClassInObject(Thread* t, object loader, object container,
   return o; 
 }
 
+enum ResolveStrategy {
+  ResolveOrThrow,
+  ResolveOrNull,
+  NoResolve
+};
+
 inline object
 resolveClassInPool(Thread* t, object loader, object method, unsigned index,
-                   bool throw_ = true)
+                   ResolveStrategy strategy = TryOrThrow)
 {
   object o = singletonObject(t, codePool(t, methodCode(t, method)), index);
 
   loadMemoryBarrier();
 
   if (objectClass(t, o) == type(t, Machine::ReferenceType)) {
-    PROTECT(t, method);
+    if (strategy == NoResolve) {
+      return type(t, Machine::ObjectType);
+    } else {
+      PROTECT(t, method);
 
-    o = resolveClass(t, loader, referenceName(t, o), throw_);
+      o = resolveClass
+        (t, loader, referenceName(t, o), strategy == ResolveOrThrow);
     
-    if (o) {
-      storeStoreMemoryBarrier();
+      if (o) {
+        storeStoreMemoryBarrier();
 
-      set(t, codePool(t, methodCode(t, method)),
-          SingletonBody + (index * BytesPerWord), o);
+        set(t, codePool(t, methodCode(t, method)),
+            SingletonBody + (index * BytesPerWord), o);
+      }
     }
   }
   return o; 
@@ -3582,24 +3593,27 @@ resolveClassInPool(Thread* t, object method, unsigned index,
 inline object
 resolve(Thread* t, object loader, object method, unsigned index,
         object (*find)(vm::Thread*, object, object, object),
-        Machine::Type errorType, bool throw_ = true)
+        Machine::Type errorType, ResolveStrategy strategy = ResolveOrThrow)
 {
   object o = singletonObject(t, codePool(t, methodCode(t, method)), index);
 
   loadMemoryBarrier();  
 
-  if (objectClass(t, o) == type(t, Machine::ReferenceType)) {
+  if (objectClass(t, o) == type(t, Machine::ReferenceType)
+      and strategy != NoResolve)
+  {
     PROTECT(t, method);
 
     object reference = o;
     PROTECT(t, reference);
 
-    object class_ = resolveClassInObject(t, loader, o, ReferenceClass, throw_);
+    object class_ = resolveClassInObject
+      (t, loader, o, ReferenceClass, strategy);
     
     if (class_) {
       o = findInHierarchy
         (t, class_, referenceName(t, reference), referenceSpec(t, reference),
-         find, errorType, throw_);
+         find, errorType, strategy == ResolveOrThrow);
     
       if (o) {
         storeStoreMemoryBarrier();
@@ -3617,17 +3631,18 @@ resolve(Thread* t, object loader, object method, unsigned index,
 
 inline object
 resolveField(Thread* t, object loader, object method, unsigned index,
-             bool throw_ = true)
+             ResolveStrategy strategy = ResolveOrThrow)
 {
   return resolve(t, loader, method, index, findFieldInClass,
-                 Machine::NoSuchFieldErrorType, throw_);
+                 Machine::NoSuchFieldErrorType, strategy);
 }
 
 inline object
-resolveField(Thread* t, object method, unsigned index, bool throw_ = true)
+resolveField(Thread* t, object method, unsigned index,
+             ResolveStrategy strategy = ResolveOrThrow)
 {
   return resolveField
-    (t, classLoader(t, methodClass(t, method)), method, index, throw_);
+    (t, classLoader(t, methodClass(t, method)), method, index, strategy);
 }
 
 inline void
@@ -3719,17 +3734,18 @@ class FieldWriteResource {
 
 inline object
 resolveMethod(Thread* t, object loader, object method, unsigned index,
-                   bool throw_ = true)
+              ResolveStrategy strategy = ResolveOrThrow)
 {
   return resolve(t, loader, method, index, findMethodInClass,
-                 Machine::NoSuchMethodErrorType, throw_);
+                 Machine::NoSuchMethodErrorType, strategy);
 }
 
 inline object
-resolveMethod(Thread* t, object method, unsigned index, bool throw_ = true)
+resolveMethod(Thread* t, object method, unsigned index
+              ResolveStrategy strategy = ResolveOrThrow)
 {
   return resolveMethod
-    (t, classLoader(t, methodClass(t, method)), method, index, throw_);
+    (t, classLoader(t, methodClass(t, method)), method, index, strategy);
 }
 
 object
