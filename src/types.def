@@ -162,6 +162,11 @@
   (object name)
   (int16_t flags))
 
+(type trace
+  (unsigned start)
+  (unsigned length)
+  (object branch))
+
 (type continuationContext
   (object next)
   (object before)

@@ -29,7 +29,7 @@ class Context {
       v->visit(&(context->method));
       v->visit(&(context->trace));
       
-      for (Value* value = graph->values; value; value = value->next) {
+      for (Value* value = context->graph->values; value; value = value->next) {
         v->visit(&(value->type));
         v->visit(&(value->value));      
       }
@@ -43,10 +43,12 @@ class Context {
     allocator(allocator),
     method(method),
     trace(trace),
-    graph(allocator->allocate
-          (sizeof(Graph)
-           + ((trace ? traceLength(t, trace)
-               : codeLength(t, methodCode(t, method))) * BytesPerWord))),
+    graph
+    (static_cast<Graph*>
+     (allocator->allocate
+      (sizeof(Graph)
+       + ((trace ? traceLength(t, trace)
+           : codeLength(t, methodCode(t, method))) * BytesPerWord)))),
     ip(trace ? traceStart(t, trace) : 0),
     protector(this)
   { }

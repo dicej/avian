@@ -3556,7 +3556,7 @@ enum ResolveStrategy {
 
 inline object
 resolveClassInPool(Thread* t, object loader, object method, unsigned index,
-                   ResolveStrategy strategy = TryOrThrow)
+                   ResolveStrategy strategy = ResolveOrThrow)
 {
   object o = singletonObject(t, codePool(t, methodCode(t, method)), index);
 
@@ -3564,7 +3564,7 @@ resolveClassInPool(Thread* t, object loader, object method, unsigned index,
 
   if (objectClass(t, o) == type(t, Machine::ReferenceType)) {
     if (strategy == NoResolve) {
-      return type(t, Machine::ObjectType);
+      return type(t, Machine::JobjectType);
     } else {
       PROTECT(t, method);
 
@@ -3584,10 +3584,10 @@ resolveClassInPool(Thread* t, object loader, object method, unsigned index,
 
 inline object
 resolveClassInPool(Thread* t, object method, unsigned index,
-                   bool throw_ = true)
+                   ResolveStrategy strategy = ResolveOrThrow)
 {
   return resolveClassInPool(t, classLoader(t, methodClass(t, method)),
-                            method, index, throw_);
+                            method, index, strategy);
 }
 
 inline object
@@ -3741,7 +3741,7 @@ resolveMethod(Thread* t, object loader, object method, unsigned index,
 }
 
 inline object
-resolveMethod(Thread* t, object method, unsigned index
+resolveMethod(Thread* t, object method, unsigned index,
               ResolveStrategy strategy = ResolveOrThrow)
 {
   return resolveMethod

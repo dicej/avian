@@ -8,6 +8,8 @@
    There is NO WARRANTY for this software.  See license.txt for
    details. */
 
+#include "avian/machine.h"
+
 namespace vm {
 
 namespace dataflow {
@@ -35,7 +37,7 @@ class Event {
   };
 
   Event(Type type, unsigned readCount):
-    type(type)
+    type(type),
     readCount(readCount)
   { }
 
@@ -49,15 +51,15 @@ class Value {
   Value(object type, bool exactType, object value, Value* next):
     type(type),
     value(value),
-    next(next),
     referencers(0),
+    next(next),
     escaped(false),
     exactType(exactType)
   { }
 
   object type;
   object value;
-  Cell<Value>* referencers;
+  Pair<Value,void>* referencers;
   Value* next;
   bool escaped;
   bool exactType;
@@ -68,18 +70,21 @@ class Read {
   Read(Event* event, unsigned position, Pair<Value,Read>* next):
     event(event),
     next(next),
-    position(position),
+    position(position)
   { }
 
   Event* event;
-  Pair<Value,Read> next;
+  Pair<Value,Read>* next;
   unsigned position;
 };
 
 class Graph {
  public:
-  Graph() { }
+  Graph():
+    values(0)
+  { }
 
+  Value* values;
   Pair<Value,Read>** reads[0];
 };
 
