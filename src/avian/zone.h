@@ -136,6 +136,10 @@ class Zone: public Allocator {
     segment = s;
   }
 
+  bool isEmpty() {
+    return segment == 0 or (segment->position == 0 and segment->next == 0);
+  }
+
   virtual void free(const void*, unsigned) {
     // not supported
     abort(s);

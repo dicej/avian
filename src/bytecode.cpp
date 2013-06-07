@@ -28,6 +28,10 @@ parseBytecode(Context* c)
   }
 
  loop:
+  if (not visitInstruction(c)) {
+    goto check;
+  }
+
   instruction = codeBody(t, code, ip++);
 
   switch (instruction) {
@@ -35,7 +39,7 @@ parseBytecode(Context* c)
     Integer index = popInt(c);
     Reference array = popReference(c);
 
-    pushReference(c, referenceArrayLoad(c, array, index, BytesPerWord));
+    pushReference(c, referenceArrayLoad(c, array, index));
   } goto loop;
 
   case aastore: {
@@ -109,12 +113,12 @@ parseBytecode(Context* c)
   } goto loop;
 
   case athrow: {
-    throwException(c, popReference(t));
+    throwException(c, popReference(c));
   } goto check;
 
   case baload: {
     Integer index = popInt(c);
-    Reference array = popReference(t);
+    Reference array = popReference(c);
 
     pushInt(c, byteArrayLoad(c, array, index));
   } goto loop;
@@ -122,7 +126,7 @@ parseBytecode(Context* c)
   case bastore: {
     Integer value = popInt(c);
     Integer index = popInt(c);
-    Reference array = popReference(t);
+    Reference array = popReference(c);
 
     byteArrayStore(c, array, index, value);
   } goto loop;
@@ -133,7 +137,7 @@ parseBytecode(Context* c)
 
   case caload: {
     Integer index = popInt(c);
-    Object array = popReference(t);
+    Reference array = popReference(c);
 
     pushInt(c, charArrayLoad(c, array, index));
   } goto loop;
@@ -141,7 +145,7 @@ parseBytecode(Context* c)
   case castore: {
     Integer value = popInt(c);
     Integer index = popInt(c);
-    Reference array = popReference(t);
+    Reference array = popReference(c);
 
     charArrayStore(c, array, index, value);
   } goto loop;
@@ -174,7 +178,7 @@ parseBytecode(Context* c)
 
   case daload: {
     Integer index = popInt(c);
-    Reference array = popReference(t);
+    Reference array = popReference(c);
 
     pushDouble(c, doubleArrayLoad(c, array, index));
   } goto loop;
@@ -182,7 +186,7 @@ parseBytecode(Context* c)
   case dastore: {
     Double value = popInt(c);
     Integer index = popInt(c);
-    Reference array = popReference(t);
+    Reference array = popReference(c);
 
     doubleArrayStore(c, array, index, value);
   } goto loop;
@@ -271,7 +275,7 @@ parseBytecode(Context* c)
 
   case faload: {
     Integer index = popInt(c);
-    Reference array = popReference(t);
+    Reference array = popReference(c);
 
     pushFloat(c, floatArrayLoad(c, array, index));
   } goto loop;
@@ -279,7 +283,7 @@ parseBytecode(Context* c)
   case fastore: {
     Float value = popFloat(c);
     Integer index = popInt(c);
-    Reference array = popReference(t);
+    Reference array = popReference(c);
 
     floatArrayStore(c, array, index, value);
   } goto loop;
@@ -456,7 +460,7 @@ parseBytecode(Context* c)
 
   case iaload: {
     Integer index = popInt(c);
-    Object array = popReference(t);
+    Reference array = popReference(c);
 
     pushInt(c, intArrayLoad(c, array, index));
   } goto loop;
@@ -471,7 +475,7 @@ parseBytecode(Context* c)
   case iastore: {
     Integer value = popInt(c);
     Integer index = popInt(c);
-    Reference array = popReference(t);
+    Reference array = popReference(c);
 
     intArrayStore(c, array, index, value);
   } goto loop;
@@ -859,14 +863,14 @@ parseBytecode(Context* c)
   case jsr: {
     uint16_t offset = codeReadInt16(t, code, ip);
 
-    pushInt(c, ip);
+    pushInt(c, intConstant(c, ip));
     jumpToSubroutine(c, (ip - 3) + static_cast<int16_t>(offset));
   } goto loop;
 
   case jsr_w: {
     uint32_t offset = codeReadInt32(t, code, ip);
 
-    pushInt(c, ip);
+    pushInt(c, intConstant(c, ip));
     jumpToSubroutine(c, (ip - 5) + static_cast<int16_t>(offset));
   } goto loop;
 
@@ -891,7 +895,7 @@ parseBytecode(Context* c)
 
   case laload: {
     Integer index = popInt(c);
-    Object array = popReference(t);
+    Reference array = popReference(c);
 
     pushLong(c, longArrayLoad(c, array, index));
   } goto loop;
@@ -906,7 +910,7 @@ parseBytecode(Context* c)
   case lastore: {
     Long value = popLong(c);
     Integer index = popInt(c);
-    Reference array = popReference(t);
+    Reference array = popReference(c);
 
     longArrayStore(c, array, index, value);
   } goto loop;
@@ -1302,7 +1306,7 @@ parseBytecode(Context* c)
 
   case saload: {
     Integer index = popInt(c);
-    Object array = popReference(t);
+    Reference array = popReference(c);
 
     pushInt(c, shortArrayLoad(c, array, index));
   } goto loop;
@@ -1310,7 +1314,7 @@ parseBytecode(Context* c)
   case sastore: {
     Integer value = popInt(c);
     Integer index = popInt(c);
-    Reference array = popReference(t);
+    Reference array = popReference(c);
 
     shortArrayStore(c, array, index, value);
   } goto loop;

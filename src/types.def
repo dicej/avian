@@ -165,7 +165,9 @@
 (type trace
   (unsigned start)
   (unsigned length)
-  (object branch))
+  (object locals)
+  (object stack)
+  (object event))
 
 (type continuationContext
   (object next)

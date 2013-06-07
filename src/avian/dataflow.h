@@ -14,16 +14,16 @@ namespace vm {
 
 namespace dataflow {
 
-template <class F, class S>
-class Pair {
+template <class T>
+class List {
  public:
-  Pair(F* first, S* second):
-    first(first),
-    second(second)
+  List(T* value, List<T>* next):
+    value(value),
+    next(next)
   { }
 
-  F* first;
-  S* second;
+  T* value;
+  List<T>* next;
 };
 
 class Read;
@@ -59,33 +59,65 @@ class Value {
 
   object type;
   object value;
-  Pair<Value,void>* referencers;
+  List<Value>* referencers;
   Value* next;
   bool escaped;
   bool exactType;
 };
 
+class ValueState {
+ public:
+  ValueState(Value* value, Read* read):
+    value(value),
+    read(read)
+  { }
+
+  Value* value;
+  Read* read;
+};
+
 class Read {
  public:
-  Read(Event* event, unsigned position, Pair<Value,Read>* next):
+  Read(Event* event, unsigned position, ValueState* next):
     event(event),
     next(next),
     position(position)
   { }
 
   Event* event;
-  Pair<Value,Read>* next;
+  ValueState* next;
   unsigned position;
+};
+
+class Frame {
+ public:
+  Frame(ValueState** locals, ValueState** stack, unsigned sp):
+    locals(locals),
+    stack(stack),
+    sp(sp)
+  { }
+
+  ValueState** locals;
+  ValueState** stack;
+  unsigned sp;
+};
+
+class Instruction {
+ public:
+  Instruction(Frame* entry):
+    entry(entry),
+    exit(0)
+  { }
+
+  Frame* entry;
+  Frame* exit;
 };
 
 class Graph {
  public:
-  Graph():
-    values(0)
-  { }
+  Graph() { }
 
-  Value* values;
-  Pair<Value,Read>** reads[0];
+  Instruction* instructions[0];
 };
 
 Graph*
