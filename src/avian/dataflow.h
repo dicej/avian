@@ -27,21 +27,51 @@ class List {
 };
 
 class Read;
+class Value;
 
 class Event {
  public:
   enum Type {
     Add,
     Subtract,
+    ArrayLoad,
+    ReferenceArrayStore,
+    Load,
+    MakeObjectArray,
+    Throw,
     // etc
   };
 
-  Event(Type type, unsigned readCount):
+  class ArrayLoadContext {
+   public:
+    ArrayLoadContext(unsigned size): size(size) { }
+
+    unsigned size;
+  };
+
+  class LoadContext {
+   public:
+    LoadContext(unsigned offset, unsigned sourceSize, unsigned size):
+      offset(offset),
+      sourceSize(sourceSize),
+      size(size)
+    { }
+
+    unsigned offset;
+    unsigned sourceSize;
+    unsigned size;
+  };
+
+  Event(Type type, void* context, Value* result, unsigned readCount):
     type(type),
+    context(context),
+    result(result),
     readCount(readCount)
   { }
 
   Type type;
+  void* context;
+  Value* result;
   unsigned readCount;
   Read* reads[0];
 };
@@ -65,9 +95,9 @@ class Value {
   bool exactType;
 };
 
-class ValueState {
+class Operand {
  public:
-  ValueState(Value* value, Read* read):
+  Operand(Value* value, Read* read):
     value(value),
     read(read)
   { }
@@ -78,27 +108,27 @@ class ValueState {
 
 class Read {
  public:
-  Read(Event* event, unsigned position, ValueState* next):
+  Read(Event* event, unsigned position, Operand* next):
     event(event),
     next(next),
     position(position)
   { }
 
   Event* event;
-  ValueState* next;
+  Operand* next;
   unsigned position;
 };
 
 class Frame {
  public:
-  Frame(ValueState** locals, ValueState** stack, unsigned sp):
+  Frame(Operand** locals, Operand** stack, unsigned sp):
     locals(locals),
     stack(stack),
     sp(sp)
   { }
 
-  ValueState** locals;
-  ValueState** stack;
+  Operand** locals;
+  Operand** stack;
   unsigned sp;
 };
 
