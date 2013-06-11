@@ -34,32 +34,117 @@ class Event {
   enum Type {
     Add,
     Subtract,
+    Multiply,
+    Divide,
+    Remainder,
+    Negate,
+    And,
+    Or,
+    Xor,
+    DoubleCompareGreater,
+    DoubleCompareLess,
+    FloatToDouble,
+    FloatToInt,
+    FloatToLong,
+    FloatCompareGreater,
+    FloatCompareLess,
     ArrayLoad,
     ReferenceArrayStore,
     Load,
     MakeObjectArray,
     Throw,
+    CheckCast,
+    DoubleToFloat,
+    DoubleToInt,
+    DoubleToLong,
+    IntToByte,
+    IntToChar,
+    IntToShort,
+    IntToDouble,
+    IntToFloat,
+    IntToLong,
+    AcquireForRead,
+    ReleaseForRead,
+    AcquireForWrite,
+    ReleaseForWrite,
+    Jump,
+    Branch,
+    Equal,
+    Greater,
+    Less,
+    NotNull,
+    InstanceOf,
+    InvokeVirtual,
+    InvokeDirect,
+    LongToDouble,
+    LongToFloat,
+    LongToInt,
+    ShiftLeft,
+    ShiftRight,
+    UnsignedShiftRight,
+    JumpToSubroutine,
+    Compare,
+    Acquire,
+    Release
     // etc
   };
 
   class ArrayLoadContext {
    public:
-    ArrayLoadContext(unsigned size): size(size) { }
+    ArrayLoadContext(unsigned size, bool signExtend):
+      size(size),
+      signExtend(signExtend)
+    { }
+
+    unsigned size;
+    unsigned signExtend;
+  };
+
+  class ArrayStoreContext {
+   public:
+    ArrayStoreContext(unsigned size): size(size) { }
 
     unsigned size;
   };
 
   class LoadContext {
    public:
-    LoadContext(unsigned offset, unsigned sourceSize, unsigned size):
+    LoadContext(unsigned offset, unsigned sourceSize, unsigned size,
+                bool signExtend = true):
       offset(offset),
       sourceSize(sourceSize),
-      size(size)
+      size(size),
+      signExtend(signExtend)
     { }
 
     unsigned offset;
     unsigned sourceSize;
     unsigned size;
+    bool signExtend;
+  };
+
+  class ObjectContext {
+   public:
+    ObjectContext(object value): value(value) { }
+
+    object value;
+  };
+
+  class JumpContext {
+   public:
+    JumpContext(unsigned ip): ip(ip) { }
+
+    unsigned ip;
+  };
+
+  class BranchContext {
+   public:
+    BranchContext(unsigned ifTrue, unsigned ifFalse):
+      ifTrue(ifTrue), ifFalse(ifFalse)
+    { }
+
+    unsigned ifTrue;
+    unsigned ifFalse;
   };
 
   Event(Type type, void* context, Value* result, unsigned readCount):
@@ -78,19 +163,25 @@ class Event {
 
 class Value {
  public:
-  Value(object type, bool exactType, object value, Value* next):
+  union V {
+    V(int64_t integer): integer(integer) { }
+    V(object reference): reference(reference) { }
+
+    int64_t integer;
+    object reference;
+  };
+
+  Value(object type, bool exactType, V value):
     type(type),
     value(value),
     referencers(0),
-    next(next),
     escaped(false),
     exactType(exactType)
   { }
 
   object type;
-  object value;
+  V value;
   List<Value>* referencers;
-  Value* next;
   bool escaped;
   bool exactType;
 };

@@ -37,10 +37,10 @@ using namespace avian::util;
   ObjectMonitorResource MAKE_NAME(monitorResource_) (t, x)
 
 #define ACQUIRE_FIELD_FOR_READ(t, field) \
-  FieldReadResource MAKE_NAME(monitorResource_) (t, field)
+  FieldReadResource MAKE_NAME(fieldResource_) (t, field)
 
 #define ACQUIRE_FIELD_FOR_WRITE(t, field) \
-  FieldWriteResource MAKE_NAME(monitorResource_) (t, field)
+  FieldWriteResource MAKE_NAME(fieldResource_) (t, field)
 
 #define ACQUIRE_RAW(t, x) RawMonitorResource MAKE_NAME(monitorResource_) (t, x)
 

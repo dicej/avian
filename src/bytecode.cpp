@@ -154,7 +154,7 @@ parseBytecode(Context* c)
     checkCast
       (c, resolveClassInPool
        (t, contextMethod(c), codeReadInt16(t, code, ip) - 1,
-        contextResolveStrategy(c)), peekReference(c, 0));
+        contextResolveStrategy(c)), peekReference(c));
   } goto loop;
 
   case d2f: {
@@ -270,7 +270,7 @@ parseBytecode(Context* c)
     Float b = popFloat(c);
     Float a = popFloat(c);
     
-    pushFloat(c, floatAdd(a, b));
+    pushFloat(c, floatAdd(c, a, b));
   } goto loop;
 
   case faload: {
@@ -351,7 +351,7 @@ parseBytecode(Context* c)
     ResolveStrategy strategy = contextResolveStrategy(c);
 
     object field = resolveField
-      (t, frameMethod(t, frame), codeReadInt16(t, code, ip) - 1, strategy);
+      (t, contextMethod(c), codeReadInt16(t, code, ip) - 1, strategy);
 
     PROTECT(t, field);
 
@@ -444,7 +444,7 @@ parseBytecode(Context* c)
   } goto loop;
 
   case i2l: {
-    pushLong(t, intToLong(c, popInt(c)));
+    pushLong(c, intToLong(c, popInt(c)));
   } goto loop;
 
   case i2s: {
@@ -719,7 +719,7 @@ parseBytecode(Context* c)
       (t, contextMethod(c), codeReadInt16(t, code, ip) - 1, strategy);
 
     if (strategy != NoResolve
-        or objectClass(t, field) != type(t, Machine::ReferenceType))
+        or objectClass(t, method) != type(t, Machine::ReferenceType))
     {
       object class_ = methodClass(t, method);
       if (isSpecialMethod(t, method, class_)) {
@@ -733,24 +733,24 @@ parseBytecode(Context* c)
       }
     }
 
-    invokeDirect(c, method);
+    invokeDirect(c, method, false);
   } goto check;
 
   case invokestatic: {    
     ResolveStrategy strategy = contextResolveStrategy(c);
 
     object method = resolveMethod
-      (t, frameMethod(t, frame), codeReadInt16(t, code, ip) - 1, strategy);
+      (t, contextMethod(c), codeReadInt16(t, code, ip) - 1, strategy);
 
     if (strategy != NoResolve
-        or objectClass(t, field) != type(t, Machine::ReferenceType))
+        or objectClass(t, method) != type(t, Machine::ReferenceType))
     {
       PROTECT(t, method);
     
       initClass(t, methodClass(t, method));
     }
 
-    invokeDirect(c, method);
+    invokeDirect(c, method, true);
   } goto check;
 
   case invokevirtual: {
@@ -942,8 +942,8 @@ parseBytecode(Context* c)
 
     object pool = codePool(t, code);
 
-    if (singletonIsReference(c, pool, index - 1)) {
-      object v = singletonReference(c, pool, index - 1);
+    if (singletonIsObject(t, pool, index - 1)) {
+      object v = singletonObject(t, pool, index - 1);
 
       loadMemoryBarrier();
 
@@ -952,12 +952,12 @@ parseBytecode(Context* c)
           (c, referenceConstant
            (c, getJClass
             (t, resolveClassInPool
-             (t, frameMethod(t, frame), index - 1,
+             (t, contextMethod(c), index - 1,
               contextResolveStrategy(c)))));
       } else if (objectClass(t, v) == type(t, Machine::ClassType)) {
-        pushReference(c, referenceContant(c, getJClass(t, v)));
+        pushReference(c, referenceConstant(c, getJClass(t, v)));
       } else {     
-        pushReference(c, referenceContant(c, v));
+        pushReference(c, referenceConstant(c, v));
       }
     } else {
       pushInt(c, intConstant(c, singletonValue(t, pool, index - 1)));
@@ -1126,7 +1126,7 @@ parseBytecode(Context* c)
     Long b = popLong(c);
     Long a = popLong(c);
     
-    pushLong(c, longSub(c, a, b));
+    pushLong(c, longSubtract(c, a, b));
   } goto loop;
 
   case lushr: {
@@ -1198,7 +1198,7 @@ parseBytecode(Context* c)
     ResolveStrategy strategy = contextResolveStrategy(c);
 
     object field = resolveField
-      (t, frameMethod(t, frame), codeReadInt16(t, code, ip) - 1, strategy);
+      (t, contextMethod(c), codeReadInt16(t, code, ip) - 1, strategy);
 
     PROTECT(t, field);
 
