@@ -49,8 +49,9 @@ class Event {
     FloatCompareGreater,
     FloatCompareLess,
     ArrayLoad,
-    ReferenceArrayStore,
+    ArrayStore,
     Load,
+    Store,
     MakeObjectArray,
     Throw,
     CheckCast,
@@ -85,7 +86,14 @@ class Event {
     JumpToSubroutine,
     Compare,
     Acquire,
-    Release
+    Release,
+    LookupSwitch,
+    TableSwitch,
+    ReturnFromSubroutine,
+    MakeMultiArray,
+    MakeArray,
+    Make,
+    StoreStoreMemoryBarrier
     // etc
   };
 
@@ -109,18 +117,26 @@ class Event {
 
   class LoadContext {
    public:
-    LoadContext(unsigned offset, unsigned sourceSize, unsigned size,
-                bool signExtend = true):
+    LoadContext(unsigned offset, unsigned size, bool signExtend = true):
       offset(offset),
-      sourceSize(sourceSize),
       size(size),
       signExtend(signExtend)
     { }
 
     unsigned offset;
-    unsigned sourceSize;
     unsigned size;
     bool signExtend;
+  };
+
+  class StoreContext {
+   public:
+    StoreContext(unsigned offset, unsigned size):
+      offset(offset),
+      size(size)
+    { }
+
+    unsigned offset;
+    unsigned size;
   };
 
   class ObjectContext {
@@ -145,6 +161,47 @@ class Event {
 
     unsigned ifTrue;
     unsigned ifFalse;
+  };
+
+  class LookupSwitchContext {
+   public:
+    LookupSwitchContext(object code, int32_t base, int32_t default_,
+                        int32_t pairCount):
+      code(code),
+      base(base),
+      default_(default_),
+      pairCount(pairCount)
+    { }
+
+    object code;
+    int32_t base;
+    int32_t default_;
+    int32_t pairCount;
+  };
+
+  class TableSwitchContext {
+   public:
+    TableSwitchContext(object code, int32_t base, int32_t default_,
+                       int32_t bottom, int32_t top):
+      code(code),
+      base(base),
+      default_(default_),
+      bottom(bottom),
+      top(top)
+    { }
+
+    object code;
+    int32_t base;
+    int32_t default_;
+    int32_t bottom;
+    int32_t top;
+  };
+
+  class MakeArrayContext {
+   public:
+    MakeArrayContext(unsigned type): type(type) { }
+
+    unsigned type;
   };
 
   Event(Type type, void* context, Value* result, unsigned readCount):

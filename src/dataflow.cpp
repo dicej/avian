@@ -328,7 +328,7 @@ visitInstruction(Context* c)
 }
 
 void
-pushInt(Context* c, Operand* v)
+pushInt(Context* c, Integer v)
 {
   if ((c->frameMask & DirtyStack) == 0) {
     c->frame = new (c->allocator) Frame
@@ -342,26 +342,26 @@ pushInt(Context* c, Operand* v)
 }
 
 void
-pushReference(Context* c, Operand* v)
+pushReference(Context* c, Reference v)
 {
   pushInt(c, v);
 }
 
 void
-pushFloat(Context* c, Operand* v)
+pushFloat(Context* c, Float v)
 {
   pushInt(c, v);
 }
 
 void
-pushLong(Context* c, Operand* v)
+pushLong(Context* c, Long v)
 {
   pushInt(c, v);
   pushInt(c, 0);
 }
 
 void
-pushDouble(Context* c, Operand* v)
+pushDouble(Context* c, Double v)
 {
   pushLong(c, v);
 }
@@ -382,7 +382,7 @@ dirtyStackPointer(Context* c)
   }
 }
 
-Operand*
+Integer
 popInt(Context* c)
 {
   dirtyStackPointer(c);
@@ -390,69 +390,92 @@ popInt(Context* c)
   return c->frame->stack[-- c->frame->sp];
 }
 
-Operand*
+void
+pop(Context* c)
+{
+  popInt(c);
+}
+
+void
+contextPop2(Context* c)
+{
+  pop(c);
+  pop(c);
+}
+
+void
+contextSwap(Context* c)
+{
+  Operand* a = popInt(c);
+  Operand* b = popInt(c);
+
+  pushInt(c, a);
+  pushInt(c, b);
+}
+
+Reference
 popReference(Context* c)
 {
   return popInt(c);
 }
 
-Operand*
+Float
 popFloat(Context* c)
 {
   return popInt(c);
 }
 
-Operand*
+Long
 popLong(Context* c)
 {
   expect(c->t, popInt(c) == 0);
   return popInt(c);
 }
 
-Operand*
+Double
 popDouble(Context* c)
 {
   return popLong(c);
 }
 
-Operand*
+Reference
 peekReference(Context* c)
 {
   return c->frame->stack[c->frame->sp - 1];
 }
 
-Operand*
+Integer
 localInt(Context* c, unsigned index)
 {
   return c->frame->locals[index];
 }
 
-Operand*
+Reference
 localReference(Context* c, unsigned index)
 {
   return localInt(c, index);
 }
 
-Operand*
+Float
 localFloat(Context* c, unsigned index)
 {
   return localInt(c, index);
 }
 
-Operand*
+Long
 localLong(Context* c, unsigned index)
 {
   return localInt(c, index);
 }
 
-Operand*
+Double
 localDouble(Context* c, unsigned index)
 {
   return localInt(c, index);
 }
 
 void
-setLocalInt(Context* c, unsigned index, Operand* value)
+setLocalInt(Context* c, unsigned index, Integer value)
 {
   if ((c->frameMask & DirtyLocals) == 0) {
     c->frame = new (c->allocator) Frame
@@ -465,26 +488,26 @@ setLocalInt(Context* c, unsigned index, Operand* value)
 }
 
 void
-setLocalReference(Context* c, unsigned index, Operand* value)
+setLocalReference(Context* c, unsigned index, Reference value)
 {
   setLocalInt(c, index, value);
 }
 
 void
-setLocalFloat(Context* c, unsigned index, Operand* value)
+setLocalFloat(Context* c, unsigned index, Float value)
 {
   setLocalInt(c, index, value);
 }
 
 void
-setLocalLong(Context* c, unsigned index, Operand* value)
+setLocalLong(Context* c, unsigned index, Long value)
 {
   setLocalInt(c, index, value);
   setLocalInt(c, index + 1, 0);
 }
 
 void
-setLocalDouble(Context* c, unsigned index, Operand* value)
+setLocalDouble(Context* c, unsigned index, Double value)
 {
   setLocalInt(c, index, value);
   setLocalInt(c, index + 1, 0);
@@ -568,8 +591,8 @@ arrayLoad(Context* c, Operand* array, Operand* index, object resultType,
      (elementSize, signExtend), resultType, 2, array, index);
 }
 
-Operand*
-referenceArrayLoad(Context* c, Operand* array, Operand* index)
+Reference
+referenceArrayLoad(Context* c, Reference array, Integer index)
 {
   object type = array->value->type;
   Thread* t = c->t;
@@ -583,46 +606,46 @@ referenceArrayLoad(Context* c, Operand* array, Operand* index)
   return arrayLoad(c, array, index, type, BytesPerWord);
 }
 
-Operand*
-byteArrayLoad(Context* c, Operand* array, Operand* index)
+Integer
+byteArrayLoad(Context* c, Reference array, Integer index)
 {
   return arrayLoad(c, array, index, type(c->t, Machine::JintType), 1);
 }
 
-Operand*
-charArrayLoad(Context* c, Operand* array, Operand* index)
+Integer
+charArrayLoad(Context* c, Reference array, Integer index)
 {
   return arrayLoad(c, array, index, type(c->t, Machine::JintType), 2, false);
 }
 
-Operand*
-doubleArrayLoad(Context* c, Operand* array, Operand* index)
+Integer
+shortArrayLoad(Context* c, Reference array, Integer index)
+{
+  return arrayLoad(c, array, index, type(c->t, Machine::JintType), 2);
+}
+
+Double
+doubleArrayLoad(Context* c, Reference array, Integer index)
 {
   return arrayLoad(c, array, index, type(c->t, Machine::JdoubleType), 8);
 }
 
-Operand*
-longArrayLoad(Context* c, Operand* array, Operand* index)
+Long
+longArrayLoad(Context* c, Reference array, Integer index)
 {
   return arrayLoad(c, array, index, type(c->t, Machine::JlongType), 8);
 }
 
-Operand*
-floatArrayLoad(Context* c, Operand* array, Operand* index)
+Float
+floatArrayLoad(Context* c, Reference array, Integer index)
 {
   return arrayLoad(c, array, index, type(c->t, Machine::JfloatType), 4);
 }
 
-Operand*
-intArrayLoad(Context* c, Operand* array, Operand* index)
+Integer
+intArrayLoad(Context* c, Reference array, Integer index)
 {
   return arrayLoad(c, array, index, type(c->t, Machine::JintType), 4);
-}
-
-void
-referenceArrayStore(Context* c, Operand* array, Operand* index, Operand* value)
-{
-  appendEvent(c, Event::ReferenceArrayStore, 0, 0, 3, array, index, value);
 }
 
 void
@@ -630,59 +653,72 @@ arrayStore(Context* c, Operand* array, Operand* index, Operand* value,
            unsigned size)
 {
   appendEvent
-    (c, Event::ArrayLoad, new (c->allocator) Event::ArrayStoreContext(size),
+    (c, Event::ArrayStore, new (c->allocator) Event::ArrayStoreContext(size),
      0, 3, array, index, value);
 }
 
 void
-byteArrayStore(Context* c, Operand* array, Operand* index, Operand* value)
+referenceArrayStore(Context* c, Reference array, Integer index,
+                    Reference value)
 {
-  return arrayStore(c, array, index, value, 1);
+  arrayStore(c, array, index, value, BytesPerWord);
 }
 
 void
-charArrayStore(Context* c, Operand* array, Operand* index, Operand* value)
+byteArrayStore(Context* c, Reference array, Integer index, Integer value)
 {
-  return arrayStore(c, array, index, value, 2);
+  arrayStore(c, array, index, value, 1);
 }
 
 void
-doubleArrayStore(Context* c, Operand* array, Operand* index, Operand* value)
+charArrayStore(Context* c, Reference array, Integer index, Integer value)
 {
-  return arrayStore(c, array, index, value, 8);
+  arrayStore(c, array, index, value, 2);
 }
 
 void
-longArrayStore(Context* c, Operand* array, Operand* index, Operand* value)
+shortArrayStore(Context* c, Reference array, Integer index, Integer value)
 {
-  return arrayStore(c, array, index, value, 8);
+  arrayStore(c, array, index, value, 2);
 }
 
 void
-floatArrayStore(Context* c, Operand* array, Operand* index, Operand* value)
+doubleArrayStore(Context* c, Reference array, Integer index, Double value)
 {
-  return arrayStore(c, array, index, value, 4);
+  arrayStore(c, array, index, value, 8);
 }
 
 void
-intArrayStore(Context* c, Operand* array, Operand* index, Operand* value)
+longArrayStore(Context* c, Reference array, Integer index, Long value)
 {
-  return arrayStore(c, array, index, value, 4);
+  arrayStore(c, array, index, value, 8);
 }
 
-Operand*
+void
+floatArrayStore(Context* c, Reference array, Integer index, Float value)
+{
+  arrayStore(c, array, index, value, 4);
+}
+
+void
+intArrayStore(Context* c, Reference array, Integer index, Integer value)
+{
+  arrayStore(c, array, index, value, 4);
+}
+
+Integer
 intConstant(Context* c, int32_t value)
 {
   return operand(c, type(c->t, Machine::JintType), true, value);
 }
 
-Operand*
+Long
 longConstant(Context* c, int64_t value)
 {
   return operand(c, type(c->t, Machine::JlongType), true, value);
 }
 
-Operand*
+Reference
 referenceConstant(Context* c, object value)
 {
   return operand
@@ -690,90 +726,134 @@ referenceConstant(Context* c, object value)
      value != 0, value);
 }
 
-Operand*
+Double
 doubleConstant(Context* c, double value)
 {
   return operand
     (c, type(c->t, Machine::JdoubleType), true, doubleToBits(value));
 }
 
-Operand*
+Float
 floatConstant(Context* c, float value)
 {
   return operand
     (c, type(c->t, Machine::JfloatType), true, floatToBits(value));
 }
 
-Operand*
-makeObjectArray(Context* c, object elementType, Operand* size)
+Reference
+makeObjectArray(Context* c, object elementType, Integer size)
 {
   return appendEvent
     (c, Event::MakeObjectArray, 0, resolveObjectArrayClass
      (c->t, classLoader(c->t, elementType), elementType), 1, size);
 }
 
-Operand*
-loadInt(Context* c, Operand* target, unsigned offset, unsigned size = 4,
+Integer
+loadInt(Context* c, Reference target, unsigned offset, unsigned size = 4,
         bool signExtend = true)
 {
   return appendEvent
     (c, Event::Load, new (c->allocator) Event::LoadContext
-     (offset, size, 4, signExtend), type(c->t, Machine::JintType), 1, target);
+     (offset, size, signExtend), type(c->t, Machine::JintType), 1, target);
 }
 
-Operand*
-loadByte(Context* c, Operand* target, unsigned offset)
+Integer
+loadByte(Context* c, Reference target, unsigned offset)
 {
   return loadInt(c, target, offset, 1);
 }
 
-Operand*
-loadChar(Context* c, Operand* target, unsigned offset)
+Integer
+loadChar(Context* c, Reference target, unsigned offset)
 {
   return loadInt(c, target, offset, 2, false);
 }
 
-Operand*
-loadShort(Context* c, Operand* target, unsigned offset)
+Integer
+loadShort(Context* c, Reference target, unsigned offset)
 {
   return loadInt(c, target, offset, 2);
 }
 
-Operand*
-loadFloat(Context* c, Operand* target, unsigned offset)
+Float
+loadFloat(Context* c, Reference target, unsigned offset)
 {
   return appendEvent
-    (c, Event::Load, new (c->allocator) Event::LoadContext(offset, 4, 4),
+    (c, Event::Load, new (c->allocator) Event::LoadContext(offset, 4),
      type(c->t, Machine::JfloatType), 1, target);
 }
 
-Operand*
-loadDouble(Context* c, Operand* target, unsigned offset)
+Double
+loadDouble(Context* c, Reference target, unsigned offset)
 {
   return appendEvent
-    (c, Event::Load, new (c->allocator) Event::LoadContext(offset, 8, 8),
+    (c, Event::Load, new (c->allocator) Event::LoadContext(offset, 8),
      type(c->t, Machine::JdoubleType), 1, target);
 }
 
-Operand*
-loadLong(Context* c, Operand* target, unsigned offset)
+Long
+loadLong(Context* c, Reference target, unsigned offset)
 {
   return appendEvent
-    (c, Event::Load, new (c->allocator) Event::LoadContext(offset, 8, 8),
+    (c, Event::Load, new (c->allocator) Event::LoadContext(offset, 8),
      type(c->t, Machine::JlongType), 1, target);
 }
 
-Operand*
-loadReference(Context* c, Operand* target, unsigned offset)
+Reference
+loadReference(Context* c, Reference target, unsigned offset)
 {
   return appendEvent
     (c, Event::Load, new (c->allocator) Event::LoadContext
-     (offset, BytesPerWord, BytesPerWord), type(c->t, Machine::JobjectType),
-     1, target);
+     (offset, BytesPerWord), type(c->t, Machine::JobjectType), 1, target);
 }
 
 void
-throwException(Context* c, Operand* exception)
+storeInt(Context* c, Reference target, unsigned offset, Integer value,
+         unsigned size = 4)
+{
+  appendEvent
+    (c, Event::Store, new (c->allocator) Event::StoreContext
+     (offset, size), 0, 2, target, value);
+}
+
+void
+storeByte(Context* c, Reference target, unsigned offset, Integer value)
+{
+  storeInt(c, target, offset, value, 1);
+}
+
+void
+storeShort(Context* c, Reference target, unsigned offset, Integer value)
+{
+  storeInt(c, target, offset, value, 2);
+}
+
+void
+storeFloat(Context* c, Reference target, unsigned offset, Float value)
+{
+  storeInt(c, target, offset, value);
+}
+
+void
+storeDouble(Context* c, Reference target, unsigned offset, Double value)
+{
+  storeInt(c, target, offset, value, 8);
+}
+
+void
+storeLong(Context* c, Reference target, unsigned offset, Long value)
+{
+  storeInt(c, target, offset, value, 8);
+}
+
+void
+storeReference(Context* c, Reference target, unsigned offset, Reference value)
+{
+  storeInt(c, target, offset, value, BytesPerWord);
+}
+
+void
+throwException(Context* c, Reference exception)
 {
   appendEvent(c, Event::Throw, 0, 0, 1, exception);
   next(c);
@@ -790,293 +870,293 @@ objectContext(Context* c, object value)
 }
 
 void
-checkCast(Context* c, object type, Operand* instance)
+checkCast(Context* c, object type, Reference instance)
 {
   appendEvent(c, Event::CheckCast, objectContext(c, type), 0, 1, instance);
 }
 
-Operand*
-instanceOf(Context* c, object type, Operand* instance)
+Integer
+instanceOf(Context* c, object type, Reference instance)
 {
   return appendEvent
     (c, Event::InstanceOf, objectContext(c, type),
      vm::type(c->t, Machine::JintType), 1, instance);
 }
 
-Operand*
-intToByte(Context* c, Operand* v)
+Integer
+intToByte(Context* c, Integer v)
 {
   return appendEvent
     (c, Event::IntToByte, 0, type(c->t, Machine::JintType), 1, v);
 }
 
-Operand*
-intToChar(Context* c, Operand* v)
+Integer
+intToChar(Context* c, Integer v)
 {
   return appendEvent
     (c, Event::IntToChar, 0, type(c->t, Machine::JintType), 1, v);
 }
 
-Operand*
-intToShort(Context* c, Operand* v)
+Integer
+intToShort(Context* c, Integer v)
 {
   return appendEvent
     (c, Event::IntToShort, 0, type(c->t, Machine::JintType), 1, v);
 }
 
-Operand*
-intToDouble(Context* c, Operand* v)
+Double
+intToDouble(Context* c, Integer v)
 {
   return appendEvent
     (c, Event::IntToDouble, 0, type(c->t, Machine::JdoubleType), 1, v);
 }
 
-Operand*
-intToFloat(Context* c, Operand* v)
+Float
+intToFloat(Context* c, Integer v)
 {
   return appendEvent
     (c, Event::IntToFloat, 0, type(c->t, Machine::JfloatType), 1, v);
 }
 
-Operand*
-intToLong(Context* c, Operand* v)
+Long
+intToLong(Context* c, Integer v)
 {
   return appendEvent
     (c, Event::IntToLong, 0, type(c->t, Machine::JlongType), 1, v);
 }
 
-Operand*
-longToDouble(Context* c, Operand* v)
+Double
+longToDouble(Context* c, Long v)
 {
   return appendEvent
     (c, Event::LongToDouble, 0, type(c->t, Machine::JdoubleType), 1, v);
 }
 
-Operand*
-longToFloat(Context* c, Operand* v)
+Float
+longToFloat(Context* c, Long v)
 {
   return appendEvent
     (c, Event::LongToFloat, 0, type(c->t, Machine::JfloatType), 1, v);
 }
 
-Operand*
-longToInt(Context* c, Operand* v)
+Integer
+longToInt(Context* c, Long v)
 {
   return appendEvent
     (c, Event::LongToInt, 0, type(c->t, Machine::JintType), 1, v);
 }
 
-Operand*
-intAdd(Context* c, Operand* a, Operand* b)
+Integer
+intAdd(Context* c, Integer a, Integer b)
 {
   return appendEvent
     (c, Event::Add, 0, type(c->t, Machine::JintType), 2, a, b);
 }
 
-Operand*
-intSubtract(Context* c, Operand* a, Operand* b)
+Integer
+intSubtract(Context* c, Integer a, Integer b)
 {
   return appendEvent
     (c, Event::Subtract, 0, type(c->t, Machine::JintType), 2, a, b);
 }
 
-Operand*
-intAnd(Context* c, Operand* a, Operand* b)
+Integer
+intAnd(Context* c, Integer a, Integer b)
 {
   return appendEvent
     (c, Event::And, 0, type(c->t, Machine::JintType), 2, a, b);
 }
 
-Operand*
-intOr(Context* c, Operand* a, Operand* b)
+Integer
+intOr(Context* c, Integer a, Integer b)
 {
   return appendEvent
     (c, Event::Or, 0, type(c->t, Machine::JintType), 2, a, b);
 }
 
-Operand*
-intXor(Context* c, Operand* a, Operand* b)
+Integer
+intXor(Context* c, Integer a, Integer b)
 {
   return appendEvent
     (c, Event::Xor, 0, type(c->t, Machine::JintType), 2, a, b);
 }
 
-Operand*
-intMultiply(Context* c, Operand* a, Operand* b)
+Integer
+intMultiply(Context* c, Integer a, Integer b)
 {
   return appendEvent
     (c, Event::Multiply, 0, type(c->t, Machine::JintType), 2, a, b);
 }
 
-Operand*
-intDivide(Context* c, Operand* a, Operand* b)
+Integer
+intDivide(Context* c, Integer a, Integer b)
 {
   return appendEvent
     (c, Event::Divide, 0, type(c->t, Machine::JintType), 2, a, b);
 }
 
-Operand*
-intRemainder(Context* c, Operand* a, Operand* b)
+Integer
+intRemainder(Context* c, Integer a, Integer b)
 {
   return appendEvent
     (c, Event::Remainder, 0, type(c->t, Machine::JintType), 2, a, b);
 }
 
-Operand*
-intShiftLeft(Context* c, Operand* a, Operand* b)
+Integer
+intShiftLeft(Context* c, Integer a, Integer b)
 {
   return appendEvent
     (c, Event::ShiftLeft, 0, type(c->t, Machine::JintType), 2, a, b);
 }
 
-Operand*
-intShiftRight(Context* c, Operand* a, Operand* b)
+Integer
+intShiftRight(Context* c, Integer a, Integer b)
 {
   return appendEvent
     (c, Event::ShiftRight, 0, type(c->t, Machine::JintType), 2, a, b);
 }
 
-Operand*
-intUnsignedShiftRight(Context* c, Operand* a, Operand* b)
+Integer
+intUnsignedShiftRight(Context* c, Integer a, Integer b)
 {
   return appendEvent
     (c, Event::UnsignedShiftRight, 0, type(c->t, Machine::JintType), 2, a, b);
 }
 
-Operand*
-intNegate(Context* c, Operand* a)
+Integer
+intNegate(Context* c, Integer a)
 {
   return appendEvent
     (c, Event::Negate, 0, type(c->t, Machine::JintType), 1, a);
 }
 
-Operand*
-intEqual(Context* c, Operand* a, Operand* b)
+Integer
+intEqual(Context* c, Integer a, Integer b)
 {
   return appendEvent
     (c, Event::Equal, 0, type(c->t, Machine::JintType), 2, a, b);
 }
 
-Operand*
-intGreater(Context* c, Operand* a, Operand* b)
+Integer
+intGreater(Context* c, Integer a, Integer b)
 {
   return appendEvent
     (c, Event::Greater, 0, type(c->t, Machine::JintType), 2, a, b);
 }
 
-Operand*
-intLess(Context* c, Operand* a, Operand* b)
+Integer
+intLess(Context* c, Integer a, Integer b)
 {
   return appendEvent
     (c, Event::Less, 0, type(c->t, Machine::JintType), 2, a, b);
 }
 
-Operand*
-longAdd(Context* c, Operand* a, Operand* b)
+Long
+longAdd(Context* c, Long a, Long b)
 {
   return appendEvent
     (c, Event::Add, 0, type(c->t, Machine::JlongType), 2, a, b);
 }
 
-Operand*
-longSubtract(Context* c, Operand* a, Operand* b)
+Long
+longSubtract(Context* c, Long a, Long b)
 {
   return appendEvent
     (c, Event::Subtract, 0, type(c->t, Machine::JlongType), 2, a, b);
 }
 
-Operand*
-longAnd(Context* c, Operand* a, Operand* b)
+Long
+longAnd(Context* c, Long a, Long b)
 {
   return appendEvent
     (c, Event::And, 0, type(c->t, Machine::JlongType), 2, a, b);
 }
 
-Operand*
-longOr(Context* c, Operand* a, Operand* b)
+Long
+longOr(Context* c, Long a, Long b)
 {
   return appendEvent
     (c, Event::Or, 0, type(c->t, Machine::JlongType), 2, a, b);
 }
 
-Operand*
-longXor(Context* c, Operand* a, Operand* b)
+Long
+longXor(Context* c, Long a, Long b)
 {
   return appendEvent
     (c, Event::Xor, 0, type(c->t, Machine::JlongType), 2, a, b);
 }
 
-Operand*
-longMultiply(Context* c, Operand* a, Operand* b)
+Long
+longMultiply(Context* c, Long a, Long b)
 {
   return appendEvent
     (c, Event::Multiply, 0, type(c->t, Machine::JlongType), 2, a, b);
 }
 
-Operand*
-longDivide(Context* c, Operand* a, Operand* b)
+Long
+longDivide(Context* c, Long a, Long b)
 {
   return appendEvent
     (c, Event::Divide, 0, type(c->t, Machine::JlongType), 2, a, b);
 }
 
-Operand*
-longRemainder(Context* c, Operand* a, Operand* b)
+Long
+longRemainder(Context* c, Long a, Long b)
 {
   return appendEvent
     (c, Event::Remainder, 0, type(c->t, Machine::JlongType), 2, a, b);
 }
 
-Operand*
-longShiftLeft(Context* c, Operand* a, Operand* b)
+Long
+longShiftLeft(Context* c, Long a, Integer b)
 {
   return appendEvent
     (c, Event::ShiftLeft, 0, type(c->t, Machine::JlongType), 2, a, b);
 }
 
-Operand*
-longShiftRight(Context* c, Operand* a, Operand* b)
+Long
+longShiftRight(Context* c, Long a, Integer b)
 {
   return appendEvent
     (c, Event::ShiftRight, 0, type(c->t, Machine::JlongType), 2, a, b);
 }
 
-Operand*
-longUnsignedShiftRight(Context* c, Operand* a, Operand* b)
+Long
+longUnsignedShiftRight(Context* c, Long a, Integer b)
 {
   return appendEvent
     (c, Event::UnsignedShiftRight, 0, type(c->t, Machine::JlongType), 2, a, b);
 }
 
-Operand*
-longCompare(Context* c, Operand* a, Operand* b)
+Integer
+longCompare(Context* c, Long a, Long b)
 {
   return appendEvent
     (c, Event::Compare, 0, type(c->t, Machine::JintType), 2, a, b);
 }
 
-Operand*
-longNegate(Context* c, Operand* a)
+Long
+longNegate(Context* c, Long a)
 {
   return appendEvent
     (c, Event::Negate, 0, type(c->t, Machine::JlongType), 1, a);
 }
 
-Operand*
-notNull(Context* c, Operand* a)
+Integer
+notNull(Context* c, Reference a)
 {
   return appendEvent
     (c, Event::NotNull, 0, type(c->t, Machine::JintType), 1, a);
 }
 
-Operand*
-referenceEqual(Context* c, Operand* a, Operand* b)
+Integer
+referenceEqual(Context* c, Reference a, Reference b)
 {
   return intEqual(c, a, b);
 }
 
 void
-branch(Context* c, Operand* condition, unsigned ifTrue, unsigned ifFalse)
+branch(Context* c, Integer condition, unsigned ifTrue, unsigned ifFalse)
 {
   // todo: trace case
 
@@ -1089,157 +1169,157 @@ branch(Context* c, Operand* condition, unsigned ifTrue, unsigned ifFalse)
   c->state.ip = ifTrue;
 }
 
-Operand*
-doubleToFloat(Context* c, Operand* v)
+Float
+doubleToFloat(Context* c, Double v)
 {
   return appendEvent
     (c, Event::DoubleToFloat, 0, type(c->t, Machine::JfloatType), 1, v);
 }
 
-Operand*
-doubleToInt(Context* c, Operand* v)
+Integer
+doubleToInt(Context* c, Double v)
 {
   return appendEvent
     (c, Event::DoubleToInt, 0, type(c->t, Machine::JintType), 1, v);
 }
 
-Operand*
-doubleToLong(Context* c, Operand* v)
+Long
+doubleToLong(Context* c, Double v)
 {
   return appendEvent
     (c, Event::DoubleToLong, 0, type(c->t, Machine::JlongType), 1, v);
 }
 
-Operand*
-doubleAdd(Context* c, Operand* a, Operand* b)
+Double
+doubleAdd(Context* c, Double a, Double b)
 {
   return appendEvent
     (c, Event::Add, 0, type(c->t, Machine::JdoubleType), 2, a, b);
 }
 
-Operand*
-doubleSubtract(Context* c, Operand* a, Operand* b)
+Double
+doubleSubtract(Context* c, Double a, Double b)
 {
   return appendEvent
     (c, Event::Subtract, 0, type(c->t, Machine::JdoubleType), 2, a, b);
 }
 
-Operand*
-doubleDivide(Context* c, Operand* a, Operand* b)
+Double
+doubleDivide(Context* c, Double a, Double b)
 {
   return appendEvent
     (c, Event::Divide, 0, type(c->t, Machine::JdoubleType), 2, a, b);
 }
 
-Operand*
-doubleMultiply(Context* c, Operand* a, Operand* b)
+Double
+doubleMultiply(Context* c, Double a, Double b)
 {
   return appendEvent
     (c, Event::Multiply, 0, type(c->t, Machine::JdoubleType), 2, a, b);
 }
 
-Operand*
-doubleRemainder(Context* c, Operand* a, Operand* b)
+Double
+doubleRemainder(Context* c, Double a, Double b)
 {
   return appendEvent
     (c, Event::Remainder, 0, type(c->t, Machine::JdoubleType), 2, a, b);
 }
 
-Operand*
-doubleNegate(Context* c, Operand* a)
+Double
+doubleNegate(Context* c, Double a)
 {
   return appendEvent
     (c, Event::Negate, 0, type(c->t, Machine::JdoubleType), 1, a);
 }
 
-Operand*
-doubleCompareGreater(Context* c, Operand* a, Operand* b)
+Integer
+doubleCompareGreater(Context* c, Double a, Double b)
 {
   return appendEvent
     (c, Event::DoubleCompareGreater, 0, type(c->t, Machine::JintType), 2, a,
      b);
 }
 
-Operand*
-doubleCompareLess(Context* c, Operand* a, Operand* b)
+Integer
+doubleCompareLess(Context* c, Double a, Double b)
 {
   return appendEvent
     (c, Event::DoubleCompareLess, 0, type(c->t, Machine::JintType), 2, a, b);
 }
 
-Operand*
-floatToDouble(Context* c, Operand* v)
+Double
+floatToDouble(Context* c, Float v)
 {
   return appendEvent
     (c, Event::FloatToDouble, 0, type(c->t, Machine::JdoubleType), 1, v);
 }
 
-Operand*
-floatToInt(Context* c, Operand* v)
+Integer
+floatToInt(Context* c, Float v)
 {
   return appendEvent
     (c, Event::FloatToInt, 0, type(c->t, Machine::JintType), 1, v);
 }
 
-Operand*
-floatToLong(Context* c, Operand* v)
+Long
+floatToLong(Context* c, Float v)
 {
   return appendEvent
     (c, Event::FloatToLong, 0, type(c->t, Machine::JlongType), 1, v);
 }
 
-Operand*
-floatAdd(Context* c, Operand* a, Operand* b)
+Float
+floatAdd(Context* c, Float a, Float b)
 {
   return appendEvent
     (c, Event::Add, 0, type(c->t, Machine::JfloatType), 2, a, b);
 }
 
-Operand*
-floatSubtract(Context* c, Operand* a, Operand* b)
+Float
+floatSubtract(Context* c, Float a, Float b)
 {
   return appendEvent
     (c, Event::Subtract, 0, type(c->t, Machine::JfloatType), 2, a, b);
 }
 
-Operand*
-floatDivide(Context* c, Operand* a, Operand* b)
+Float
+floatDivide(Context* c, Float a, Float b)
 {
   return appendEvent
     (c, Event::Divide, 0, type(c->t, Machine::JfloatType), 2, a, b);
 }
 
-Operand*
-floatMultiply(Context* c, Operand* a, Operand* b)
+Float
+floatMultiply(Context* c, Float a, Float b)
 {
   return appendEvent
     (c, Event::Multiply, 0, type(c->t, Machine::JfloatType), 2, a, b);
 }
 
-Operand*
-floatRemainder(Context* c, Operand* a, Operand* b)
+Float
+floatRemainder(Context* c, Float a, Float b)
 {
   return appendEvent
     (c, Event::Remainder, 0, type(c->t, Machine::JfloatType), 2, a, b);
 }
 
-Operand*
-floatNegate(Context* c, Operand* a)
+Float
+floatNegate(Context* c, Float a)
 {
   return appendEvent
     (c, Event::Negate, 0, type(c->t, Machine::JfloatType), 1, a);
 }
 
-Operand*
-floatCompareGreater(Context* c, Operand* a, Operand* b)
+Integer
+floatCompareGreater(Context* c, Float a, Float b)
 {
   return appendEvent
     (c, Event::FloatCompareGreater, 0, type(c->t, Machine::JintType), 2, a,
      b);
 }
 
-Operand*
-floatCompareLess(Context* c, Operand* a, Operand* b)
+Integer
+floatCompareLess(Context* c, Float a, Float b)
 {
   return appendEvent
     (c, Event::FloatCompareLess, 0, type(c->t, Machine::JintType), 2, a, b);
@@ -1398,6 +1478,12 @@ jumpToSubroutine(Context* c, unsigned ip)
 }
 
 void
+returnFromSubroutine(Context* c, Integer ip)
+{
+  appendEvent(c, Event::ReturnFromSubroutine, 0, 0, 1, ip);
+}
+
+void
 invoke(Context* c, object method, Event::Type eventType, bool isStatic)
 {
   Thread* t = c->t;
@@ -1515,15 +1601,90 @@ invokeDirect(Context* c, object method, bool isStatic)
 }
 
 void
-acquire(Context* c, Operand* instance)
+acquire(Context* c, Reference instance)
 {
   appendEvent(c, Event::Acquire, 0, 0, 1, instance);
 }
 
 void
-release(Context* c, Operand* instance)
+release(Context* c, Reference instance)
 {
   appendEvent(c, Event::Release, 0, 0, 1, instance);
+}
+
+void
+lookupSwitch(Context* c, Integer value, object code, int32_t base,
+             int32_t default_, int32_t pairCount)
+{
+  Event::LookupSwitchContext* lsc = new (c->allocator)
+    Event::LookupSwitchContext(code, base, default_, pairCount);
+
+  reference(c, &(lsc->code));
+
+  appendEvent(c, Event::LookupSwitch, lsc, 0, 1, value);
+
+  for (int32_t i = 0; i < pairCount; ++i) {
+    unsigned index = c->state.ip + (i * 8) + 4;
+    new (&(c->states)) State
+      (c->state.method, c->state.instruction, base + codeReadInt32
+       (c->t, code, index));
+  }
+  
+  c->state.ip = base + default_;
+}
+
+void
+tableSwitch(Context* c, Integer value, object code, int32_t base,
+            int32_t default_, int32_t bottom, int32_t top)
+{
+  Event::TableSwitchContext* tsc = new (c->allocator)
+    Event::TableSwitchContext(code, base, default_, bottom, top);
+
+  reference(c, &(tsc->code));
+
+  appendEvent(c, Event::TableSwitch, tsc, 0, 1, value);
+
+  for (int32_t i = 0; i < top - bottom + 1; ++i) {
+    unsigned index = c->state.ip + (i * 4);
+    new (&(c->states)) State
+      (c->state.method, c->state.instruction, base + codeReadInt32
+       (c->t, code, index));
+  }
+
+  c->state.ip = base + default_;
+}
+
+Reference
+makeMultiArray(Context* c, Integer* counts, unsigned dimensions, object type)
+{
+  return appendEventArray
+    (c, Event::MakeMultiArray, 0, type, dimensions, counts);
+}
+
+Reference
+make(Context* c, object type)
+{
+  return appendEvent(c, Event::Make, 0, type, 0);
+}
+
+Reference
+makeArray(Context* c, unsigned type, Integer length)
+{
+  return appendEvent
+    (c, Event::MakeArray, new (c->allocator) Event::MakeArrayContext(type), 0,
+     1, length);
+}
+
+void
+storeStoreMemoryBarrier(Context* c)
+{
+  appendEvent(c, Event::StoreStoreMemoryBarrier, 0, 0, 0);
+}
+
+void
+resolveBootstrap(Context*, object)
+{
+  // ignore
 }
 
 #include "bytecode.cpp"

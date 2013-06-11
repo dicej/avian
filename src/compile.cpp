@@ -6255,7 +6255,7 @@ compile(MyThread* t, Frame* initialFrame, unsigned initialIp,
       unsigned count = top - bottom + 1;
       uint32_t* ipTable = static_cast<uint32_t*>
         (stack.push(sizeof(uint32_t) * count));
-      for (int32_t i = 0; i < top - bottom + 1; ++i) {
+      for (int32_t i = 0; i < count; ++i) {
         unsigned index = ip + (i * 4);
         uint32_t newIp = base + codeReadInt32(t, code, index);
         assert(t, newIp < codeLength(t, code));

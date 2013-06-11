@@ -1162,7 +1162,7 @@ parseBytecode(Context* c)
 
     pushReference
       (c, makeMultiArray
-       (t, counts, dimensions, resolveClassInPool
+       (c, RUNTIME_ARRAY_BODY(counts), dimensions, resolveClassInPool
         (t, contextMethod(c), index - 1, contextResolveStrategy(c))));
   } goto loop;
 
@@ -1190,7 +1190,7 @@ parseBytecode(Context* c)
   } goto loop;
 
   case pop2: {
-    pop2(c);
+    contextPop2(c);
   } goto loop;
 
   case putfield:
@@ -1276,7 +1276,7 @@ parseBytecode(Context* c)
         storeLong(c, target, offset, value);
       } break;
 
-      case ReferenceField: {
+      case ObjectField: {
         Reference value = popReference(c);
         Reference target = instruction == putfield ? popReference(c)
           : referenceConstant(c, table);
@@ -1294,14 +1294,14 @@ parseBytecode(Context* c)
   } goto loop;
 
   case return_: {
-    object method = contextMethod(t);
+    object method = contextMethod(c);
     if ((methodFlags(t, method) & ConstructorFlag)
         and (classVmFlags(t, methodClass(t, method)) & HasFinalMemberFlag))
     {
       storeStoreMemoryBarrier(c);
     }
 
-    popFrame(t);
+    popFrame(c);
   } goto check;
 
   case saload: {
@@ -1325,7 +1325,7 @@ parseBytecode(Context* c)
   } goto loop;
 
   case swap: {
-    swap(c);
+    contextSwap(c);
   } goto loop;
 
   case tableswitch: {
@@ -1338,7 +1338,7 @@ parseBytecode(Context* c)
     int32_t bottom = codeReadInt32(t, code, ip);
     int32_t top = codeReadInt32(t, code, ip);
     
-    tableSwitch(c, popInt(c), default_, bottom, top);
+    tableSwitch(c, popInt(c), code, base, default_, bottom, top);
   } goto loop;
 
   case wide: goto wide;
@@ -1353,8 +1353,6 @@ parseBytecode(Context* c)
     assert(t, codeBody(t, code, ip - 3) == invokevirtual);
     ip -= 2;
 
-    uint16_t index = codeReadInt16(t, code, ip);
-    
     resolveBootstrap
       (c, resolveMethod(t, contextMethod(c), codeReadInt16(t, code, ip) - 1,
                         contextResolveStrategy(c)));
