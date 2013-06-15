@@ -758,6 +758,12 @@ loadInt(Context* c, Reference target, unsigned offset, unsigned size = 4,
 }
 
 Integer
+loadWord(Context* c, Reference target, unsigned offset)
+{
+  return loadInt(c, target, offset, BytesPerWord);
+}
+
+Integer
 loadByte(Context* c, Reference target, unsigned offset)
 {
   return loadInt(c, target, offset, 1);
@@ -1595,6 +1601,12 @@ invokeVirtual(Context* c, object method)
 }
 
 void
+invokeInterface(Context* c, object method)
+{
+  invokeVirtual(c, method);
+}
+
+void
 invokeDirect(Context* c, object method, bool isStatic)
 {
   invoke(c, method, Event::InvokeDirect, isStatic);
@@ -1687,6 +1699,14 @@ resolveBootstrap(Context*, object)
   // ignore
 }
 
+Reference
+nullCheck(Context*, Reference r)
+{
+  // should we record this as an event to force an entry in the stack
+  // map to be created?
+  return r;
+}
+
 #include "bytecode.cpp"
 
 } // namespace local
@@ -1703,6 +1723,8 @@ makeGraph(Thread* t, Allocator* allocator, object method, object trace)
   local::Context context(t, allocator, method, trace);
 
   local::parseBytecode(&context);
+
+  // todo: visit exception handlers if trace == 0
 
   return context.graph;
 }

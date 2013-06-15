@@ -89,7 +89,7 @@ parseBytecode(Context* c)
   } goto check;
 
   case arraylength: {
-    pushInt(c, loadInt(c, popReference(c), BytesPerWord, BytesPerWord));
+    pushInt(c, loadWord(c, popReference(c), BytesPerWord));
   } goto loop;
 
   case astore: {
@@ -367,7 +367,7 @@ parseBytecode(Context* c)
 
       offset = fieldOffset(t, field);
       code = fieldCode(t, field);
-      target = instruction == getfield ? popReference(c)
+      target = instruction == getfield ? nullCheck(c, popReference(c))
         : referenceConstant(c, classStaticTable(t, fieldClass(t, field)));
     } else {
       offset = 0x7FFFFFFF;
@@ -708,8 +708,9 @@ parseBytecode(Context* c)
     
     ip += 2;
 
-    invokeVirtual(c, resolveMethod
-                  (t, contextMethod(c), index - 1, contextResolveStrategy(c)));
+    invokeInterface
+      (c, resolveMethod
+       (t, contextMethod(c), index - 1, contextResolveStrategy(c)));
   } goto check;
 
   case invokespecial: {
@@ -1232,7 +1233,8 @@ parseBytecode(Context* c)
       case ShortField:
       case IntField: {
         Integer value = popInt(c);
-        Reference target = instruction == putfield ? popReference(c)
+        Reference target = instruction == putfield
+          ? nullCheck(c, popReference(c))
           : referenceConstant(c, table);
         
         switch (code) {
@@ -1254,7 +1256,8 @@ parseBytecode(Context* c)
 
       case FloatField: {
         Float value = popFloat(c);
-        Reference target = instruction == putfield ? popReference(c)
+        Reference target = instruction == putfield
+          ? nullCheck(c, popReference(c))
           : referenceConstant(c, table);
 
         storeFloat(c, target, offset, value);
@@ -1262,7 +1265,8 @@ parseBytecode(Context* c)
 
       case DoubleField: {
         Double value = popDouble(c);
-        Reference target = instruction == putfield ? popReference(c)
+        Reference target = instruction == putfield
+          ? nullCheck(c, popReference(c))
           : referenceConstant(c, table);
 
         storeDouble(c, target, offset, value);
@@ -1270,7 +1274,8 @@ parseBytecode(Context* c)
 
       case LongField: {
         Long value = popLong(c);
-        Reference target = instruction == putfield ? popReference(c)
+        Reference target = instruction == putfield
+          ? nullCheck(c, popReference(c))
           : referenceConstant(c, table);
 
         storeLong(c, target, offset, value);
@@ -1278,7 +1283,8 @@ parseBytecode(Context* c)
 
       case ObjectField: {
         Reference value = popReference(c);
-        Reference target = instruction == putfield ? popReference(c)
+        Reference target = instruction == putfield
+          ? nullCheck(c, popReference(c))
           : referenceConstant(c, table);
 
         storeReference(c, target, offset, value);
@@ -1358,7 +1364,7 @@ parseBytecode(Context* c)
                         contextResolveStrategy(c)));
 
     ip -= 3;
-  } goto loop;
+  } goto check;
 
   default: abort(t);
   }

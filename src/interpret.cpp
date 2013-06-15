@@ -15,6 +15,7 @@
 #include "avian/processor.h"
 #include "avian/process.h"
 #include "avian/arch.h"
+#include "avian/dataflow.h"
 
 #include <avian/util/runtime-array.h>
 
@@ -27,6 +28,9 @@ const unsigned FrameNextOffset = 1;
 const unsigned FrameMethodOffset = 2;
 const unsigned FrameIpOffset = 3;
 const unsigned FrameFootprint = 4;
+
+#define CONTEXT_ACQUIRE_FIELD_FOR_READ ACQUIRE_FIELD_FOR_READ
+#define CONTEXT_ACQUIRE_FIELD_FOR_WRITE ACQUIRE_FIELD_FOR_WRITE
 
 class Context: public Thread {
  public:
@@ -65,7 +69,772 @@ typedef int64_t Long;
 typedef float Float;
 typedef double Double;
 
+Thread*
+contextThread(Context* t)
+{
+  return t;
+}
+
+unsigned&
+contextIp(Context* t)
+{
+  return t->ip;
+}
+
+ResolveStrategy
+contextResolveStrategy(Context*)
+{
+  return ResolveOrThrow;
+}
+
+bool
+visitInstruction(Context*)
+{
+  return true;
+}
+
+#define ARRAY_OPERATION(action)                                         \
+  if (LIKELY(array)) {                                                  \
+    if (LIKELY(index >= 0                                               \
+               and static_cast<uintptr_t>(index)                        \
+               < fieldAtOffset<uintptr_t>(array, BytesPerWord)))        \
+    {                                                                   \
+      action;                                                           \
+    } else {                                                            \
+      throwNew(t, Machine::ArrayIndexOutOfBoundsExceptionType,          \
+               "%d not in [0,%d)", index, fieldAtOffset<uintptr_t>      \
+               (array, BytesPerWord));                                  \
+    }                                                                   \
+  } else {                                                              \
+    throwNew(t, Machine::NullPointerExceptionType);                     \
+  }
+
+Reference
+referenceArrayLoad(Context* t, Reference array, Integer index)
+{
+  ARRAY_OPERATION(return arrayBody(t, array, index));
+}
+
 void
+referenceArrayStore(Context* t, Reference array, Integer index,
+                    Reference value)
+{
+  ARRAY_OPERATION(set(t, array, ArrayBody + (index * BytesPerWord), value));
+}
+
+Reference
+nullCheck(Context* t, Reference o)
+{
+  if (LIKELY(o)) {
+    return o;
+  } else {
+    throwNew(t, Machine::NullPointerExceptionType);
+  }
+}
+
+Integer
+loadWord(Context*, Reference target, unsigned offset)
+{
+  return fieldAtOffset<intptr_t>(target, offset);
+}
+
+Integer
+loadInt(Context*, Reference target, unsigned offset)
+{
+  return fieldAtOffset<Integer>(target, offset);
+}
+
+Integer
+loadByte(Context*, Reference target, unsigned offset)
+{
+  return fieldAtOffset<int8_t>(target, offset);
+}
+
+Integer
+loadChar(Context*, Reference target, unsigned offset)
+{
+  return fieldAtOffset<uint16_t>(target, offset);
+}
+
+Integer
+loadShort(Context*, Reference target, unsigned offset)
+{
+  return fieldAtOffset<int16_t>(target, offset);
+}
+
+Float
+loadFloat(Context*, Reference target, unsigned offset)
+{
+  return fieldAtOffset<float>(target, offset);
+}
+
+Double
+loadDouble(Context*, Reference target, unsigned offset)
+{
+  return fieldAtOffset<double>(target, offset);
+}
+
+Long
+loadLong(Context*, Reference target, unsigned offset)
+{
+  return fieldAtOffset<int64_t>(target, offset);
+}
+
+Reference
+loadReference(Context*, Reference target, unsigned offset)
+{
+  return fieldAtOffset<object>(target, offset);
+}
+
+void
+throwException(Context* t, Reference exception)
+{
+  throw_(t, exception);
+}
+
+Integer
+intArrayLoad(Context* t, Reference array, Integer index)
+{
+  ARRAY_OPERATION
+    (return fieldAtOffset<int32_t>(array, (BytesPerWord * 2) + (index * 4)));
+}
+
+void
+intArrayStore(Context* t, Reference array, Integer index, Integer value)
+{
+  ARRAY_OPERATION
+    (fieldAtOffset<int32_t>(array, (BytesPerWord * 2) + (index * 4)) = value);
+}
+
+Long
+longArrayLoad(Context* t, Reference array, Integer index)
+{
+  ARRAY_OPERATION
+    (return fieldAtOffset<int64_t>(array, (BytesPerWord * 2) + (index * 8)));
+}
+
+void
+longArrayStore(Context* t, Reference array, Integer index, Long value)
+{
+  ARRAY_OPERATION
+    (fieldAtOffset<int64_t>(array, (BytesPerWord * 2) + (index * 8)) = value);
+}
+
+Integer
+byteArrayLoad(Context* t, Reference array, Integer index)
+{
+  ARRAY_OPERATION
+    (return fieldAtOffset<int8_t>(array, (BytesPerWord * 2) + index));
+}
+
+void
+byteArrayStore(Context* t, Reference array, Integer index, Integer value)
+{
+  ARRAY_OPERATION
+    (fieldAtOffset<int8_t>(array, (BytesPerWord * 2) + index) = value);
+}
+
+Integer
+shortArrayLoad(Context* t, Reference array, Integer index)
+{
+  ARRAY_OPERATION
+    (return fieldAtOffset<int16_t>(array, (BytesPerWord * 2) + (index * 2)));
+}
+
+void
+shortArrayStore(Context* t, Reference array, Integer index, Integer value)
+{
+  ARRAY_OPERATION
+    (fieldAtOffset<int16_t>(array, (BytesPerWord * 2) + (index * 2)) = value);
+}
+
+Integer
+charArrayLoad(Context* t, Reference array, Integer index)
+{
+  ARRAY_OPERATION
+    (return fieldAtOffset<uint16_t>(array, (BytesPerWord * 2) + (index * 2)));
+}
+
+void
+charArrayStore(Context* t, Reference array, Integer index, Integer value)
+{
+  ARRAY_OPERATION
+    (fieldAtOffset<uint16_t>(array, (BytesPerWord * 2) + (index * 2)) = value);
+}
+
+Double
+doubleArrayLoad(Context* t, Reference array, Integer index)
+{
+  ARRAY_OPERATION
+    (return fieldAtOffset<double>(array, (BytesPerWord * 2) + (index * 8)));
+}
+
+void
+doubleArrayStore(Context* t, Reference array, Integer index, Double value)
+{
+  ARRAY_OPERATION
+    (fieldAtOffset<double>(array, (BytesPerWord * 2) + (index * 8)) = value);
+}
+
+Float
+floatArrayLoad(Context* t, Reference array, Integer index)
+{
+  ARRAY_OPERATION
+    (return fieldAtOffset<float>(array, (BytesPerWord * 2) + (index * 4)));
+}
+
+void
+floatArrayStore(Context* t, Reference array, Integer index, Float value)
+{
+  ARRAY_OPERATION
+    (fieldAtOffset<float>(array, (BytesPerWord * 2) + (index * 4)) = value);
+}
+
+bool
+isNaN(double v)
+{
+  return fpclassify(v) == FP_NAN;
+}
+
+bool
+isNaN(float v)
+{
+  return fpclassify(v) == FP_NAN;
+}
+
+Integer
+doubleCompareGreater(Context*, Double a, Double b)
+{
+  if (isNaN(a) or isNaN(b)) {
+    return 1;
+  } if (a < b) {
+    return -1;
+  } else if (a > b) {
+    return 1;
+  } else if (a == b) {
+    return 0;
+  } else {
+    return 1;
+  }
+}
+
+Integer
+doubleCompareLess(Context*, Double a, Double b)
+{
+  if (isNaN(a) or isNaN(b)) {
+    return -1;
+  } if (a < b) {
+    return -1;
+  } else if (a > b) {
+    return 1;
+  } else if (a == b) {
+    return 0;
+  } else {
+    return -1;
+  }
+}
+
+Integer
+floatCompareGreater(Context*, Float a, Float b)
+{
+  if (isNaN(a) or isNaN(b)) {
+    return 1;
+  } if (a < b) {
+    return -1;
+  } else if (a > b) {
+    return 1;
+  } else if (a == b) {
+    return 0;
+  } else {
+    return 1;
+  }
+}
+
+Integer
+floatCompareLess(Context*, Float a, Float b)
+{
+  if (isNaN(a) or isNaN(b)) {
+    return -1;
+  } if (a < b) {
+    return -1;
+  } else if (a > b) {
+    return 1;
+  } else if (a == b) {
+    return 0;
+  } else {
+    return -1;
+  }
+}
+
+Integer
+intConstant(Context*, int32_t v)
+{
+  return v;
+}
+
+Reference
+referenceConstant(Context*, object v)
+{
+  return v;
+}
+
+Long
+longConstant(Context*, int64_t v)
+{
+  return v;
+}
+
+Double
+doubleConstant(Context*, double v)
+{
+  return v;
+}
+
+Float
+floatConstant(Context*, float v)
+{
+  return v;
+}
+
+void
+checkCast(Context* t, object type, Reference instance)
+{
+  if (UNLIKELY(not instanceOf(t, type, instance))) {
+    throwNew(t, Machine::ClassCastExceptionType, "%s as %s",
+             &byteArrayBody
+             (t, className(t, objectClass(t, instance)), 0),
+             &byteArrayBody(t, className(t, type), 0));
+  }
+}
+
+Float
+doubleToFloat(Context*, Double v)
+{
+  return v;
+}
+
+Integer
+doubleToInt(Context*, Double v)
+{
+  switch (fpclassify(v)) {
+  case      FP_NAN: return 0;
+  case FP_INFINITE: return signbit(v) ? INT32_MIN : INT32_MAX;
+  default         : return v >= INT32_MAX ? INT32_MAX
+      : (v <= INT32_MIN ? INT32_MIN : static_cast<int32_t>(v));
+  }
+}
+
+Long
+doubleToLong(Context*, Double v)
+{
+  switch (fpclassify(v)) {
+  case      FP_NAN: return 0;
+  case FP_INFINITE: return signbit(v) ? INT64_MIN : INT64_MAX;
+  default         : return v >= INT64_MAX ? INT64_MAX
+      : (v <= INT64_MIN ? INT64_MIN : static_cast<int64_t>(v));
+  }
+}
+
+Double
+doubleAdd(Context*, Double a, Double b)
+{
+  return a + b;
+}
+
+Double
+doubleSubtract(Context*, Double a, Double b)
+{
+  return a - b;
+}
+
+Double
+doubleDivide(Context*, Double a, Double b)
+{
+  return a / b;
+}
+
+Double
+doubleRemainder(Context*, Double a, Double b)
+{
+  return fmod(a, b);
+}
+
+Double
+doubleMultiply(Context*, Double a, Double b)
+{
+  return a * b;
+}
+
+Double
+doubleNegate(Context*, Double a)
+{
+  return - a;
+}
+
+Double
+floatToDouble(Context*, Float v)
+{
+  return v;
+}
+
+Integer
+floatToInt(Context*, Float v)
+{
+  switch (fpclassify(v)) {
+  case      FP_NAN: return 0;
+  case FP_INFINITE: return signbit(v) ? INT32_MIN : INT32_MAX;
+  default         : return v >= INT32_MAX ? INT32_MAX
+      : (v <= INT32_MIN ? INT32_MIN : static_cast<int32_t>(v));
+  }
+}
+
+Long
+floatToLong(Context*, Float v)
+{
+  switch (fpclassify(v)) {
+  case      FP_NAN: return 0;
+  case FP_INFINITE: return signbit(v) ? INT64_MIN : INT64_MAX;
+  default         : return v >= INT64_MAX ? INT64_MAX
+      : (v <= INT64_MIN ? INT64_MIN : static_cast<int64_t>(v));
+  }
+}
+
+Float
+floatAdd(Context*, Float a, Float b)
+{
+  return a + b;
+}
+
+Float
+floatSubtract(Context*, Float a, Float b)
+{
+  return a - b;
+}
+
+Float
+floatDivide(Context*, Float a, Float b)
+{
+  return a / b;
+}
+
+Float
+floatRemainder(Context*, Float a, Float b)
+{
+  return fmod(a, b);
+}
+
+Float
+floatMultiply(Context*, Float a, Float b)
+{
+  return a * b;
+}
+
+Float
+floatNegate(Context*, Float a)
+{
+  return - a;
+}
+
+void
+duplicate(Context* t, unsigned instruction)
+{
+  unsigned& sp = t->sp;
+  uintptr_t* stack = t->stack;
+
+  switch (instruction) {
+  case dup:
+    memcpy(stack + (sp    ), stack + (sp - 1), BytesPerWord);
+    ++ sp;
+    break;
+
+  case dup_x1: {
+    memcpy(stack + (sp    ), stack + (sp - 1), BytesPerWord);
+    memcpy(stack + (sp - 1), stack + (sp - 2), BytesPerWord);
+    memcpy(stack + (sp - 2), stack + (sp    ), BytesPerWord);
+    ++ sp;
+  } break;
+
+  case dup_x2: {
+    memcpy(stack + (sp    ), stack + (sp - 1), BytesPerWord);
+    memcpy(stack + (sp - 1), stack + (sp - 2), BytesPerWord);
+    memcpy(stack + (sp - 2), stack + (sp - 3), BytesPerWord);
+    memcpy(stack + (sp - 3), stack + (sp    ), BytesPerWord);
+    ++ sp;
+  } break;
+
+  case dup2: {
+    memcpy(stack + (sp    ), stack + (sp - 2), BytesPerWord * 2);
+    sp += 2;
+  } break;
+
+  case dup2_x1: {
+    memcpy(stack + (sp + 1), stack + (sp - 1), BytesPerWord);
+    memcpy(stack + (sp    ), stack + (sp - 2), BytesPerWord);
+    memcpy(stack + (sp - 1), stack + (sp - 3), BytesPerWord);
+    memcpy(stack + (sp - 3), stack + (sp    ), BytesPerWord * 2);
+    sp += 2;
+  } break;
+
+  case dup2_x2: {
+    memcpy(stack + (sp + 1), stack + (sp - 1), BytesPerWord);
+    memcpy(stack + (sp    ), stack + (sp - 2), BytesPerWord);
+    memcpy(stack + (sp - 1), stack + (sp - 3), BytesPerWord);
+    memcpy(stack + (sp - 2), stack + (sp - 4), BytesPerWord);
+    memcpy(stack + (sp - 4), stack + (sp    ), BytesPerWord * 2);
+    sp += 2;
+  } break;
+
+  default: abort(t);
+  }
+}
+
+Integer
+intToByte(Context*, Integer v)
+{
+  return static_cast<int8_t>(v);
+}
+
+Integer
+intToShort(Context*, Integer v)
+{
+  return static_cast<int16_t>(v);
+}
+
+Integer
+intToChar(Context*, Integer v)
+{
+  return static_cast<uint16_t>(v);
+}
+
+Double
+intToDouble(Context*, Integer v)
+{
+  return v;
+}
+
+Float
+intToFloat(Context*, Integer v)
+{
+  return v;
+}
+
+Long
+intToLong(Context*, Integer v)
+{
+  return v;
+}
+
+Double
+longToDouble(Context*, Long v)
+{
+  return v;
+}
+
+Float
+longToFloat(Context*, Long v)
+{
+  return v;
+}
+
+Integer
+longToInt(Context*, Long v)
+{
+  return v;
+}
+
+Integer
+longCompare(Context*, Long a, Long b)
+{
+  return a > b ? 1 : a == b ? 0 : -1;
+}
+
+Long
+longNegate(Context*, Long a)
+{
+  return - a;
+}
+
+Long
+longAdd(Context*, Long a, Long b)
+{
+  return a + b;
+}
+
+Long
+longShiftLeft(Context*, Long a, Integer b)
+{
+  return a << b;
+}
+
+Long
+longShiftRight(Context*, Long a, Integer b)
+{
+  return a >> b;
+}
+
+Long
+longUnsignedShiftRight(Context*, Long a, Integer b)
+{
+  return static_cast<uint64_t>(a) >> b;
+}
+
+Long
+longSubtract(Context*, Long a, Long b)
+{
+  return a - b;
+}
+
+Long
+longDivide(Context*, Long a, Long b)
+{
+  return a / b;
+}
+
+Long
+longRemainder(Context*, Long a, Long b)
+{
+  return a % b;
+}
+
+Long
+longMultiply(Context*, Long a, Long b)
+{
+  return a * b;
+}
+
+Long
+longAnd(Context*, Long a, Long b)
+{
+  return a & b;
+}
+
+Long
+longOr(Context*, Long a, Long b)
+{
+  return a | b;
+}
+
+Long
+longXor(Context*, Long a, Long b)
+{
+  return a ^ b;
+}
+
+Integer
+intNegate(Context*, Integer a)
+{
+  return - a;
+}
+
+Integer
+intAdd(Context*, Integer a, Integer b)
+{
+  return a + b;
+}
+
+Integer
+intShiftLeft(Context*, Integer a, Integer b)
+{
+  return a << b;
+}
+
+Integer
+intShiftRight(Context*, Integer a, Integer b)
+{
+  return a >> b;
+}
+
+Integer
+intUnsignedShiftRight(Context*, Integer a, Integer b)
+{
+  return static_cast<uint32_t>(a) >> b;
+}
+
+Integer
+intSubtract(Context*, Integer a, Integer b)
+{
+  return a - b;
+}
+
+Integer
+intDivide(Context*, Integer a, Integer b)
+{
+  return a / b;
+}
+
+Integer
+intRemainder(Context*, Integer a, Integer b)
+{
+  return a % b;
+}
+
+Integer
+intMultiply(Context*, Integer a, Integer b)
+{
+  return a * b;
+}
+
+Integer
+intAnd(Context*, Integer a, Integer b)
+{
+  return a & b;
+}
+
+Integer
+intOr(Context*, Integer a, Integer b)
+{
+  return a | b;
+}
+
+Integer
+intXor(Context*, Integer a, Integer b)
+{
+  return a ^ b;
+}
+
+Integer
+intEqual(Context*, Integer a, Integer b)
+{
+  return a == b;
+}
+
+Integer
+referenceEqual(Context*, Reference a, Reference b)
+{
+  return a == b;
+}
+
+Integer
+notNull(Context*, Reference a)
+{
+  return a != 0;
+}
+
+Integer
+intGreater(Context*, Integer a, Integer b)
+{
+  return a > b;
+}
+
+Integer
+intLess(Context*, Integer a, Integer b)
+{
+  return a < b;
+}
+
+void
+jump(Context* t, unsigned ip)
+{
+  t->ip = ip;
+}
+
+void
+branch(Context* t, Integer condition, unsigned ifTrue, unsigned ifFalse)
+{
+  t->ip = condition ? ifTrue : ifFalse;
+}
+
+object*
 pushReference(Context* t, object o)
 {
   if (DebugStack) {
@@ -73,7 +842,10 @@ pushReference(Context* t, object o)
   }
 
   assert(t, t->sp < stackSizeInWords(t));
-  t->stack[t->sp ++] = reinterpret_cast<uintptr_t>(o);
+  object* p = reinterpret_cast<object*>(t->stack + (t->sp ++));
+  *p = o;
+
+  return p;
 }
 
 void
@@ -152,7 +924,7 @@ popLong(Context* t)
 
   t->sp -= 8 / BytesPerWord;
 
-  uint64_t v; memcpy(&v, t->stack + t->sp);
+  uint64_t v; memcpy(&v, t->stack + t->sp, 8);
 
   if (DebugStack) {
     fprintf(stderr, "pop long %" LLD " at %d\n", v, t->sp);
@@ -182,9 +954,9 @@ peekObject(Context* t, unsigned index)
 }
 
 object
-peekReference(Context* t, unsigned offset)
+peekReference(Context* t)
 {
-  return peekObject(t, t->sp - 1 - offset);
+  return peekObject(t, t->sp - 1);
 }
 
 uint32_t
@@ -248,14 +1020,14 @@ pokeLong(Context* t, unsigned index, uint64_t value)
 
   assert(t, index <= t->sp - (8 / BytesPerWord));
 
-  memcpy(t->stack + index, &v, 8);
+  memcpy(t->stack + index, &value, 8);
 }
 
 object*
 pushLocalReference(Context* t, object o)
 {
   if (o) {
-    pushObject(t, o);
+    pushReference(t, o);
     return reinterpret_cast<object*>(t->stack + (t->sp - 1));
   } else {
     return 0;
@@ -287,7 +1059,13 @@ frameBase(Context* t, int frame)
 }
 
 object
-localObject(Context* t, unsigned index)
+contextMethod(Context* t)
+{
+  return frameMethod(t, t->frame);
+}
+
+object
+localReference(Context* t, unsigned index)
 {
   return peekObject(t, frameBase(t, t->frame) + index);
 }
@@ -304,8 +1082,62 @@ localLong(Context* t, unsigned index)
   return peekLong(t, frameBase(t, t->frame) + index);
 }
 
+Float
+localFloat(Context* t, unsigned index)
+{
+  return bitsToFloat(peekInt(t, frameBase(t, t->frame) + index));
+}
+
+Double
+localDouble(Context* t, unsigned index)
+{
+  return bitsToDouble(peekLong(t, frameBase(t, t->frame) + index));
+}
+
 void
-setLocalObject(Context* t, unsigned index, object value)
+storeByte(Context*, Reference target, unsigned offset, Integer value)
+{
+  fieldAtOffset<int8_t>(target, offset) = value;
+}
+
+void
+storeShort(Context*, Reference target, unsigned offset, Integer value)
+{
+  fieldAtOffset<int16_t>(target, offset) = value;
+}
+
+void
+storeInt(Context*, Reference target, unsigned offset, Integer value)
+{
+  fieldAtOffset<int32_t>(target, offset) = value;
+}
+
+void
+storeFloat(Context*, Reference target, unsigned offset, Float value)
+{
+  fieldAtOffset<float>(target, offset) = value;
+}
+
+void
+storeLong(Context*, Reference target, unsigned offset, Long value)
+{
+  fieldAtOffset<int64_t>(target, offset) = value;
+}
+
+void
+storeDouble(Context*, Reference target, unsigned offset, Double value)
+{
+  fieldAtOffset<double>(target, offset) = value;
+}
+
+void
+storeReference(Context* t, Reference target, unsigned offset, Reference value)
+{
+  set(t, target, offset, value);
+}
+
+void
+setLocalReference(Context* t, unsigned index, object value)
 {
   pokeObject(t, frameBase(t, t->frame) + index, value);
 }
@@ -317,9 +1149,21 @@ setLocalInt(Context* t, unsigned index, uint32_t value)
 }
 
 void
+setLocalFloat(Context* t, unsigned index, float value)
+{
+  setLocalInt(t, index, floatToBits(value));
+}
+
+void
 setLocalLong(Context* t, unsigned index, uint64_t value)
 {
   pokeLong(t, frameBase(t, t->frame) + index, value);
+}
+
+void
+setLocalDouble(Context* t, unsigned index, double value)
+{
+  setLocalLong(t, index, doubleToBits(value));
 }
 
 void
@@ -426,20 +1270,6 @@ class MyStackWalker: public Processor::StackWalker {
 };
 
 void
-checkStack(Context* t, object method)
-{
-  if (UNLIKELY(t->sp
-               + methodParameterFootprint(t, method)
-               + codeMaxLocals(t, methodCode(t, method))
-               + FrameFootprint
-               + codeMaxStack(t, methodCode(t, method))
-               > stackSizeInWords(t)))
-  {
-    throwNew(t, Machine::StackOverflowErrorType);
-  }
-}
-
-void
 pushResult(Context* t, unsigned returnCode, uint64_t result, bool indirect)
 {
   switch (returnCode) {
@@ -489,13 +1319,13 @@ pushResult(Context* t, unsigned returnCode, uint64_t result, bool indirect)
                 *reinterpret_cast<object*>(static_cast<uintptr_t>(result)),
                 reinterpret_cast<object*>(static_cast<uintptr_t>(result)));
       }
-      pushObject(t, static_cast<uintptr_t>(result) == 0 ? 0 :
+      pushReference(t, static_cast<uintptr_t>(result) == 0 ? 0 :
                  *reinterpret_cast<object*>(static_cast<uintptr_t>(result)));
     } else {
       if (DebugRun) {
         fprintf(stderr, "result: %p\n", reinterpret_cast<object>(result));
       }
-      pushObject(t, reinterpret_cast<object>(result));
+      pushReference(t, reinterpret_cast<object>(result));
     }
     break;
 
@@ -686,23 +1516,196 @@ invokeNative(Context* t, object method)
 }
 
 void
+checkStack(Context* t, object method)
+{
+  if (UNLIKELY(t->sp
+               + methodParameterFootprint(t, method)
+               + codeMaxLocals(t, methodCode(t, method))
+               + FrameFootprint
+               + codeMaxStack(t, methodCode(t, method))
+               > stackSizeInWords(t)))
+  {
+    throwNew(t, Machine::StackOverflowErrorType);
+  }
+}
+
+void
+doInvoke(Context* t, object method)
+{
+  if (methodFlags(t, method) & ACC_NATIVE) {
+    invokeNative(t, method);
+  } else {
+    checkStack(t, method);
+    pushFrame(t, method);
+  }
+}
+
+void
+invokeInterface(Context* t, object method)
+{
+  unsigned parameterFootprint = methodParameterFootprint(t, method);
+  object o = peekObject(t, t->sp - parameterFootprint);
+  if (LIKELY(o)) {
+    doInvoke(t, findInterfaceMethod(t, method, objectClass(t, o)));
+  } else {
+    throwNew(t, Machine::NullPointerExceptionType);
+  }
+}
+
+void
+invokeVirtual(Context* t, object method)
+{
+  unsigned parameterFootprint = methodParameterFootprint(t, method);
+  object o = peekObject(t, t->sp - parameterFootprint);
+  if (LIKELY(o)) {
+    doInvoke(t, findVirtualMethod(t, method, objectClass(t, o)));
+  } else {
+    throwNew(t, Machine::NullPointerExceptionType);
+  }
+}
+
+void
+invokeDirect(Context* t, object method, bool)
+{
+  doInvoke(t, method);
+}
+
+void
+jumpToSubroutine(Context* t, unsigned ip)
+{
+  t->ip = ip;
+}
+
+void
+returnFromSubroutine(Context* t, unsigned ip)
+{
+  t->ip = ip;
+}
+
+void
+storeStoreMemoryBarrier(Context*)
+{
+  vm::storeStoreMemoryBarrier();
+}
+
+void
+lookupSwitch(Context* t, Integer key, object code, int32_t base,
+             int32_t default_, int32_t pairCount)
+{
+  int32_t bottom = 0;
+  int32_t top = pairCount;
+  for (int32_t span = top - bottom; span; span = top - bottom) {
+    int32_t middle = bottom + (span / 2);
+    unsigned index = t->ip + (middle * 8);
+
+    int32_t k = codeReadInt32(t, code, index);
+
+    if (key < k) {
+      top = middle;
+    } else if (key > k) {
+      bottom = middle + 1;
+    } else {
+      t->ip = base + codeReadInt32(t, code, index);
+      return;
+    }
+  }
+
+  t->ip = base + default_;
+}
+
+void
+tableSwitch(Context* t, Integer key, object code, int32_t base,
+            int32_t default_, int32_t bottom, int32_t top)
+{
+  if (key >= bottom and key <= top) {
+    unsigned index = t->ip + ((key - bottom) * 4);
+    t->ip = base + codeReadInt32(t, code, index);
+  } else {
+    t->ip = base + default_;
+  }
+}
+void
+resolveBootstrap(Context* t, object method)
+{
+  unsigned parameterFootprint = methodParameterFootprint(t, method);
+  object class_ = objectClass(t, peekObject(t, t->sp - parameterFootprint));
+  assert(t, classVmFlags(t, class_) & BootstrapFlag);
+    
+  resolveClass(t, classLoader(t, methodClass(t, frameMethod(t, t->frame))),
+               className(t, class_));
+}
+
+Reference
+makeMultiArray(Context* t, Integer* counts, unsigned dimensions, object type)
+{
+  object array = makeArray(t, counts[0]);
+  setObjectClass(t, array, type);
+  PROTECT(t, array);
+  
+  populateMultiArray(t, array, counts, 0, dimensions);
+
+  return array;
+}
+
+Reference
+makeArray(Context* t, unsigned type, Integer count)
+{
+  switch (type) {
+  case T_BOOLEAN:
+    return makeBooleanArray(t, count);
+
+  case T_CHAR:
+    return makeCharArray(t, count);
+
+  case T_FLOAT:
+    return makeFloatArray(t, count);
+
+  case T_DOUBLE:
+    return makeDoubleArray(t, count);
+
+  case T_BYTE:
+    return makeByteArray(t, count);
+
+  case T_SHORT:
+    return makeShortArray(t, count);
+
+  case T_INT:
+    return makeIntArray(t, count);
+
+  case T_LONG:
+    return makeLongArray(t, count);
+
+  default: abort(t);
+  }
+}
+
+void
+pop(Context* t)
+{
+  popInt(t);
+}
+
+void
+contextPop2(Context* t)
+{
+  popLong(t);
+}
+
+void
+contextSwap(Context* t)
+{
+  uintptr_t tmp[2];
+  memcpy(tmp                   , t->stack + (t->sp - 1), BytesPerWord);
+  memcpy(t->stack + (t->sp - 1), t->stack + (t->sp - 2), BytesPerWord);
+  memcpy(t->stack + (t->sp - 2), tmp                   , BytesPerWord);
+}
+
+void
 store(Context* t, unsigned index)
 {
   memcpy(t->stack + ((frameBase(t, t->frame) + index) * 2),
          t->stack + ((-- t->sp) * 2),
          BytesPerWord * 2);
-}
-
-bool
-isNaN(double v)
-{
-  return fpclassify(v) == FP_NAN;
-}
-
-bool
-isNaN(float v)
-{
-  return fpclassify(v) == FP_NAN;
 }
 
 uint64_t
@@ -761,7 +1764,7 @@ interpret3(Context* t, const int base)
 {
   t->base = base;
 
-  unsigned returnCode = methodReturnCode(t, t->frame);
+  unsigned returnCode = methodReturnCode(t, contextMethod(t));
 
   parseBytecode(t);
 
@@ -828,7 +1831,7 @@ pushArguments(Context* t, object this_, const char* spec, bool indirectObjects,
               va_list a)
 {
   if (this_) {
-    pushObject(t, this_);
+    pushReference(t, this_);
   }
 
   for (MethodSpecIterator it(t, spec); it.hasNext();) {
@@ -837,9 +1840,9 @@ pushArguments(Context* t, object this_, const char* spec, bool indirectObjects,
     case '[':
       if (indirectObjects) {
         object* v = va_arg(a, object*);
-        pushObject(t, v ? *v : 0);
+        pushReference(t, v ? *v : 0);
       } else {
-        pushObject(t, va_arg(a, object));
+        pushReference(t, va_arg(a, object));
       }
       break;
       
@@ -864,7 +1867,7 @@ pushArguments(Context* t, object this_, const char* spec,
               const jvalue* arguments)
 {
   if (this_) {
-    pushObject(t, this_);
+    pushReference(t, this_);
   }
 
   unsigned index = 0;
@@ -873,7 +1876,7 @@ pushArguments(Context* t, object this_, const char* spec,
     case 'L':
     case '[': {
       jobject v = arguments[index++].l;
-      pushObject(t, v ? *v : 0);
+      pushReference(t, v ? *v : 0);
     } break;
       
     case 'J':
@@ -896,7 +1899,7 @@ void
 pushArguments(Context* t, object this_, const char* spec, object a)
 {
   if (this_) {
-    pushObject(t, this_);
+    pushReference(t, this_);
   }
 
   unsigned index = 0;
@@ -904,7 +1907,7 @@ pushArguments(Context* t, object this_, const char* spec, object a)
     switch (*it.next()) {
     case 'L':
     case '[':
-      pushObject(t, objectArrayBody(t, a, index++));
+      pushReference(t, objectArrayBody(t, a, index++));
       break;
       
     case 'J':
@@ -970,7 +1973,7 @@ invoke(Context* t, object method)
       break;
         
     case ObjectField:
-      result = popObject(t);
+      result = popReference(t);
       break;
 
     case VoidField:
@@ -1008,7 +2011,7 @@ class MyProcessor: public Processor {
   makeThread(Machine* m, object javaThread, Thread* parent)
   {
     Context* t = new (m->heap->allocate(sizeof(Thread) + m->stackSizeInBytes))
-      Thread(m, javaThread, parent);
+      Context(m, javaThread, parent);
     t->init();
     return t;
   }
@@ -1067,57 +2070,47 @@ class MyProcessor: public Processor {
   virtual void
   visitObjects(Thread* vmt, Heap::Visitor* v)
   {
-    Context* t = static_cast<Thread*>(vmt);
+    Context* t = static_cast<Context*>(vmt);
 
     v->visit(&(t->code));
 
     class MyStackVisitor: public StackVisitor {
      public:
-      MyStackVisitor(Context* t) t(t) { }
+      MyStackVisitor(Context* t, Heap::Visitor* v): t(t), v(v) { }
 
       virtual bool visit(StackWalker* vmw) {
         MyStackWalker* walker = static_cast<MyStackWalker*>(vmw);
 
-        class MyTypeVisitor: public TypeVisitor {
-         public:
-          MyTypeVisitor(MyStackWalker* walker):
-          t(walker->t),
-          walker(walker),
-          parameterFootprint
-          (codeParameterFootprint(t, methodCode(t, walker->method()))),
-          index(walker->frame - parameterFootprint)
-          { }
+        using namespace vm::dataflow;
 
-          virtual void visit(object type) {
-            if (isReferenceType(t, type)) {
-              v->visit(t->stack + index);
-            }
-            
-            index += stackFootprint(t, type);
+        Zone zone(t->m->system, t->m->heap, 0);
+        Frame* frame = makeGraph(t, &zone, walker->method(), 0)->instructions
+          [walker->ip()]->entry;
 
-            if (index == parameterFootprint) {
-              index += FrameFootprint;
-            }
+        unsigned maxLocals = codeMaxLocals(t, methodCode(t, walker->method()));
+
+        for (unsigned i = 0; i < maxLocals; ++i) {
+          Operand* o = frame->locals[i];
+          if (o and (classVmFlags(t, o->value->type) & PrimitiveFlag) == 0) {
+            v->visit(reinterpret_cast<object*>(t->stack + walker->frame + i));
           }
+        }
 
-          Context* t;
-          MyStackWalker* walker;
-          unsigned parameterFootprint;
-          unsigned index;
-        } tv(walker);
+        for (unsigned i = 0; i < frame->sp; ++i) {
+          Operand* o = frame->locals[i];
+          if (o and (classVmFlags(t, o->value->type) & PrimitiveFlag) == 0) {
+            v->visit
+              (reinterpret_cast<object*>
+               (t->stack + walker->frame + maxLocals + i));
+          }
+        }
 
-        object code = methodCode(t, walker->method());
-        unsigned mapSize = ceilingDivide
-          (codeMaxStack(t, code) + codeMaxLocals(t, code), 32);
-
-        THREAD_RUNTIME_ARRAY(t, uint32_t, map, mapSize);
-
-        getFrameMap
-          (t, walker->method(), walker->ip(), RUNTIME_ARRAY_BODY(map));
+        return true;
       }
 
       Context* t;
-    } sv(t);
+      Heap::Visitor* v;
+    } sv(t, v);
 
     walkStack(t, &sv);
   }
@@ -1125,7 +2118,7 @@ class MyProcessor: public Processor {
   virtual void
   walkStack(Thread* vmt, StackVisitor* v)
   {
-    Context* t = static_cast<Thread*>(vmt);
+    Context* t = static_cast<Context*>(vmt);
 
     if (t->frame >= 0) {
       pokeInt(t, t->frame + FrameIpOffset, t->ip);
@@ -1164,8 +2157,8 @@ class MyProcessor: public Processor {
 
     if (t->sp + capacity < stackSizeInWords(t) / 2) {
       t->referenceFrame = new
-        (t->m->heap->allocate(sizeof(Thread::ReferenceFrame)))
-        Thread::ReferenceFrame(t->referenceFrame, t->sp);
+        (t->m->heap->allocate(sizeof(Context::ReferenceFrame)))
+        Context::ReferenceFrame(t->referenceFrame, t->sp);
     
       return true;
     } else {
@@ -1178,11 +2171,11 @@ class MyProcessor: public Processor {
   {
     Context* t = static_cast<Context*>(vmt);
 
-    Thread::ReferenceFrame* f = t->referenceFrame;
+    Context::ReferenceFrame* f = t->referenceFrame;
     t->referenceFrame = f->next;
     t->sp = f->sp;
 
-    t->m->heap->free(f, sizeof(Thread::ReferenceFrame));
+    t->m->heap->free(f, sizeof(Context::ReferenceFrame));
   }
 
   virtual object
