@@ -1707,7 +1707,25 @@ nullCheck(Context*, Reference r)
   return r;
 }
 
-#include "bytecode.cpp"
+#include "bytecode.inc.cpp"
+
+int
+resolveIpForwards(Context* c, int start, int end)
+{
+  if (start < 0) {
+    start = 0;
+  }
+
+  while (start < end and c->graph->instructions[start]->exit == 0) {
+    ++ start;
+  }
+  
+  if (start >= end) {
+    return -1;
+  } else {
+    return start;
+  }
+}
 
 } // namespace local
 
@@ -1724,7 +1742,48 @@ makeGraph(Thread* t, Allocator* allocator, object method, object trace)
 
   local::parseBytecode(&context);
 
-  // todo: visit exception handlers if trace == 0
+  object eht = codeExceptionHandlerTable
+    (t, methodCode(t, contextMethod(&context)));
+
+  if (eht) {
+    PROTECT(t, eht);
+
+    unsigned visitCount = exceptionHandlerTableLength(t, eht);
+
+    THREAD_RUNTIME_ARRAY(t, bool, visited, visitCount);
+    memset(RUNTIME_ARRAY_BODY(visited), 0, visitCount * sizeof(bool));
+
+    bool progress = true;
+    while (progress) {
+      progress = false;
+
+      for (unsigned i = 0; i < exceptionHandlerTableLength(t, eht); ++i) {
+        if (not RUNTIME_ARRAY_BODY(visited)[i]) {
+          uint64_t eh = exceptionHandlerTableBody(t, eht, i);
+          int start = resolveIpForwards
+            (&context, exceptionHandlerStart(eh), exceptionHandlerEnd(eh));
+
+          if (start >= 0
+              and context.graph->instructions[start]->exit)
+          {
+            RUNTIME_ARRAY_BODY(visited)[i] = true;
+            progress = true;
+
+            unsigned end = exceptionHandlerEnd(eh);
+            if (exceptionHandlerIp(eh) >= static_cast<unsigned>(start)
+                and exceptionHandlerIp(eh) < end)
+            {
+              end = exceptionHandlerIp(eh);
+            }
+
+            contextIp(&context) = exceptionHandlerIp(eh);
+
+            parseBytecode(&context);
+          }
+        }
+      }
+    }
+  }
 
   return context.graph;
 }

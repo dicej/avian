@@ -32,6 +32,13 @@ parseBytecode(Context* c)
     goto check;
   }
 
+  // fprintf
+  //   (stderr, "interpret %s.%s%s %d\n",
+  //    &byteArrayBody(t, className(t, methodClass(t, contextMethod(c))), 0),
+  //    &byteArrayBody(t, methodName(t, contextMethod(c)), 0),
+  //    &byteArrayBody(t, methodSpec(t, contextMethod(c)), 0),
+  //    ip);
+
   instruction = codeBody(t, code, ip++);
 
   switch (instruction) {
@@ -367,8 +374,14 @@ parseBytecode(Context* c)
 
       offset = fieldOffset(t, field);
       code = fieldCode(t, field);
-      target = instruction == getfield ? nullCheck(c, popReference(c))
-        : referenceConstant(c, classStaticTable(t, fieldClass(t, field)));
+      if (instruction == getfield) {
+        target = nullCheck(c, popReference(c));
+      } else {
+        target = referenceConstant
+          (c, classStaticTable(t, fieldClass(t, field)));
+
+        initClass(t, fieldClass(t, field));
+      }
     } else {
       offset = 0x7FFFFFFF;
       code = fieldCode(t, byteArrayBody(t, referenceSpec(t, field), 0));
@@ -1205,7 +1218,8 @@ parseBytecode(Context* c)
 
     unsigned offset;
     unsigned code;
-    object table;
+    object table = 0;
+    PROTECT(t, table);
     
     if (strategy != NoResolve
         or objectClass(t, field) != type(t, Machine::ReferenceType))
@@ -1216,13 +1230,15 @@ parseBytecode(Context* c)
       offset = fieldOffset(t, field);
       code = fieldCode(t, field);
       table = classStaticTable(t, fieldClass(t, field));
+
+      if (instruction == putstatic) {
+        initClass(t, fieldClass(t, field));
+      }
     } else {
       offset = 0x7FFFFFFF;
       code = fieldCode(t, byteArrayBody(t, referenceSpec(t, field), 0));
       table = 0;
     }
-
-    PROTECT(t, table);
 
     { CONTEXT_ACQUIRE_FIELD_FOR_WRITE(c, field);
 

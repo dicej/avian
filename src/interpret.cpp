@@ -872,9 +872,9 @@ pushLong(Context* t, uint64_t v)
     fprintf(stderr, "push long %" LLD " at %d\n", v, t->sp);
   }
 
-  assert(t, t->sp + (8 / BytesPerWord) <= stackSizeInWords(t));
+  assert(t, t->sp + 2 <= stackSizeInWords(t));
   memcpy(t->stack + t->sp, &v, 8);
-  t->sp += 8 / BytesPerWord;
+  t->sp += 2;
 }
 
 void
@@ -920,9 +920,9 @@ popFloat(Context* t)
 uint64_t
 popLong(Context* t)
 {
-  assert(t, t->sp >= 8 / BytesPerWord);
+  assert(t, t->sp >= 2);
 
-  t->sp -= 8 / BytesPerWord;
+  t->sp -= 2;
 
   uint64_t v; memcpy(&v, t->stack + t->sp, 8);
 
@@ -942,8 +942,6 @@ popDouble(Context* t)
 object
 peekObject(Context* t, unsigned index)
 {
-  assert(t, index < t->sp);
-
   if (DebugStack) {
     fprintf(stderr, "peek object %p at %d\n",
             reinterpret_cast<object>(t->stack[index]),
@@ -962,8 +960,6 @@ peekReference(Context* t)
 uint32_t
 peekInt(Context* t, unsigned index)
 {
-  assert(t, index < t->sp);
-
   if (DebugStack) {
     fprintf(stderr, "peek int %" ULD " at %d\n",
             t->stack[index],
@@ -976,8 +972,6 @@ peekInt(Context* t, unsigned index)
 uint64_t
 peekLong(Context* t, unsigned index)
 {
-  assert(t, index <= t->sp - (8 / BytesPerWord));
-
   uint64_t v; memcpy(&v, t->stack + index, 8);
 
   if (DebugStack) {
@@ -990,8 +984,6 @@ peekLong(Context* t, unsigned index)
 void
 pokeObject(Context* t, unsigned index, object value)
 {
-  assert(t, index < t->sp);
-
   if (DebugStack) {
     fprintf(stderr, "poke object %p at %d\n", value, index);
   }
@@ -1002,8 +994,6 @@ pokeObject(Context* t, unsigned index, object value)
 void
 pokeInt(Context* t, unsigned index, uint32_t value)
 {
-  assert(t, index < t->sp);
-
   if (DebugStack) {
     fprintf(stderr, "poke int %d at %d\n", value, index);
   }
@@ -1018,20 +1008,7 @@ pokeLong(Context* t, unsigned index, uint64_t value)
     fprintf(stderr, "poke long %" LLD " at %d\n", value, index);
   }
 
-  assert(t, index <= t->sp - (8 / BytesPerWord));
-
   memcpy(t->stack + index, &value, 8);
-}
-
-object*
-pushLocalReference(Context* t, object o)
-{
-  if (o) {
-    pushReference(t, o);
-    return reinterpret_cast<object*>(t->stack + (t->sp - 1));
-  } else {
-    return 0;
-  }
 }
 
 int
@@ -1061,7 +1038,7 @@ frameBase(Context* t, int frame)
 object
 contextMethod(Context* t)
 {
-  return frameMethod(t, t->frame);
+  return t->frame >= t->base ? frameMethod(t, t->frame) : 0;
 }
 
 object
@@ -1202,6 +1179,12 @@ pushFrame(Context* t, object method)
   }
 
   unsigned frame = base + locals;
+
+  // fprintf(stderr, "push %s.%s%s %d %d\n",
+  //         &byteArrayBody(t, className(t, methodClass(t, method)), 0),
+  //         &byteArrayBody(t, methodName(t, method), 0),
+  //         &byteArrayBody(t, methodSpec(t, method), 0), t->frame, frame);
+
   pokeInt(t, frame + FrameNextOffset, t->frame);
   t->frame = frame;
 
@@ -1215,7 +1198,16 @@ pushFrame(Context* t, object method)
 void
 popFrame(Context* t)
 {
+  assert(t, t->frame >= 0);
+
   object method = frameMethod(t, t->frame);
+
+  // fprintf(stderr, "pop %s.%s%s %d %d\n",
+  //         &byteArrayBody(t, className(t, methodClass(t, method)), 0),
+  //         &byteArrayBody(t, methodName(t, method), 0),
+  //         &byteArrayBody(t, methodSpec(t, method), 0),
+  //         t->frame,
+  //         frameNext(t, t->frame));
 
   if (methodFlags(t, method) & ACC_SYNCHRONIZED) {
     if (methodFlags(t, method) & ACC_STATIC) {
@@ -1374,7 +1366,7 @@ marshalArguments(Context* t, uintptr_t* args, uint8_t* types, unsigned sp,
       if (fastCallingConvention) {
         args[argOffset++] = reinterpret_cast<uintptr_t>(peekObject(t, sp++));
       } else {
-        object* v = reinterpret_cast<object*>(t->stack + ((sp++) * 2) + 1);
+        object* v = reinterpret_cast<object*>(t->stack + (sp++));
         if (*v == 0) {
           v = 0;
         }
@@ -1757,12 +1749,14 @@ findExceptionHandler(Context* t, int frame)
   return findExceptionHandler(t, frameMethod(t, frame), frameIp(t, frame));
 }
 
-#include "bytecode.cpp"
+#include "bytecode.inc.cpp"
 
 object
 interpret3(Context* t, const int base)
 {
+  int oldBase = t->base;
   t->base = base;
+  THREAD_RESOURCE(t, int, oldBase, static_cast<Context*>(t)->base = oldBase);
 
   unsigned returnCode = methodReturnCode(t, contextMethod(t));
 
@@ -1989,9 +1983,7 @@ invoke(Context* t, object method)
 
     result = interpret(t);
 
-    if (LIKELY(t->exception == 0)) {
-      popFrame(t);
-    } else {
+    if (UNLIKELY(t->exception)) {
       object exception = t->exception;
       t->exception = 0;
       throw_(t, exception);
@@ -2092,7 +2084,8 @@ class MyProcessor: public Processor {
         for (unsigned i = 0; i < maxLocals; ++i) {
           Operand* o = frame->locals[i];
           if (o and (classVmFlags(t, o->value->type) & PrimitiveFlag) == 0) {
-            v->visit(reinterpret_cast<object*>(t->stack + walker->frame + i));
+            v->visit(reinterpret_cast<object*>
+                     (t->stack + frameBase(t, walker->frame) + i));
           }
         }
 
@@ -2101,7 +2094,7 @@ class MyProcessor: public Processor {
           if (o and (classVmFlags(t, o->value->type) & PrimitiveFlag) == 0) {
             v->visit
               (reinterpret_cast<object*>
-               (t->stack + walker->frame + maxLocals + i));
+               (t->stack + walker->frame + FrameFootprint + i));
           }
         }
 
