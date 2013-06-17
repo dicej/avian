@@ -112,7 +112,7 @@ visitInstruction(Context*)
 Reference
 referenceArrayLoad(Context* t, Reference array, Integer index)
 {
-  ARRAY_OPERATION(return arrayBody(t, array, index));
+  ARRAY_OPERATION(return objectArrayBody(t, array, index));
 }
 
 void
@@ -399,7 +399,7 @@ floatConstant(Context*, float v)
 void
 checkCast(Context* t, object type, Reference instance)
 {
-  if (UNLIKELY(not instanceOf(t, type, instance))) {
+  if (UNLIKELY(instance and (not instanceOf(t, type, instance)))) {
     throwNew(t, Machine::ClassCastExceptionType, "%s as %s",
              &byteArrayBody
              (t, className(t, objectClass(t, instance)), 0),
@@ -685,14 +685,22 @@ longSubtract(Context*, Long a, Long b)
 }
 
 Long
-longDivide(Context*, Long a, Long b)
+longDivide(Context* t, Long a, Long b)
 {
+  if (UNLIKELY(b == 0)) {
+    throwNew(t, Machine::ArithmeticExceptionType);
+  }
+
   return a / b;
 }
 
 Long
-longRemainder(Context*, Long a, Long b)
+longRemainder(Context* t, Long a, Long b)
 {
+  if (UNLIKELY(b == 0)) {
+    throwNew(t, Machine::ArithmeticExceptionType);
+  }
+
   return a % b;
 }
 
@@ -757,14 +765,22 @@ intSubtract(Context*, Integer a, Integer b)
 }
 
 Integer
-intDivide(Context*, Integer a, Integer b)
+intDivide(Context* t, Integer a, Integer b)
 {
+  if (UNLIKELY(b == 0)) {
+    throwNew(t, Machine::ArithmeticExceptionType);
+  }
+
   return a / b;
 }
 
 Integer
-intRemainder(Context*, Integer a, Integer b)
+intRemainder(Context* t, Integer a, Integer b)
 {
+  if (UNLIKELY(b == 0)) {
+    throwNew(t, Machine::ArithmeticExceptionType);
+  }
+
   return a % b;
 }
 
@@ -1180,11 +1196,15 @@ pushFrame(Context* t, object method)
 
   unsigned frame = base + locals;
 
-  // fprintf(stderr, "push %s.%s%s %d %d\n",
-  //         &byteArrayBody(t, className(t, methodClass(t, method)), 0),
-  //         &byteArrayBody(t, methodName(t, method), 0),
-  //         &byteArrayBody(t, methodSpec(t, method), 0), t->frame, frame);
-
+  // if (methodName(t, method)) {
+  //   fprintf(stderr, "push %s.%s%s %d %d\n",
+  //           &byteArrayBody(t, className(t, methodClass(t, method)), 0),
+  //           &byteArrayBody(t, methodName(t, method), 0),
+  //           &byteArrayBody(t, methodSpec(t, method), 0), t->frame, frame);
+  // } else {
+  //   fprintf(stderr, "push stub %d %d\n", t->frame, frame);
+  // }
+      
   pokeInt(t, frame + FrameNextOffset, t->frame);
   t->frame = frame;
 
@@ -1202,12 +1222,16 @@ popFrame(Context* t)
 
   object method = frameMethod(t, t->frame);
 
-  // fprintf(stderr, "pop %s.%s%s %d %d\n",
-  //         &byteArrayBody(t, className(t, methodClass(t, method)), 0),
-  //         &byteArrayBody(t, methodName(t, method), 0),
-  //         &byteArrayBody(t, methodSpec(t, method), 0),
-  //         t->frame,
-  //         frameNext(t, t->frame));
+  // if (methodName(t, method)) {
+  //   fprintf(stderr, "pop %s.%s%s %d %d\n",
+  //           &byteArrayBody(t, className(t, methodClass(t, method)), 0),
+  //           &byteArrayBody(t, methodName(t, method), 0),
+  //           &byteArrayBody(t, methodSpec(t, method), 0),
+  //           t->frame,
+  //           frameNext(t, t->frame));
+  // } else {
+  //   fprintf(stderr, "pop stub %d %d\n", t->frame, frameNext(t, t->frame));
+  // }
 
   if (methodFlags(t, method) & ACC_SYNCHRONIZED) {
     if (methodFlags(t, method) & ACC_STATIC) {
@@ -1754,6 +1778,24 @@ findExceptionHandler(Context* t, int frame)
 object
 interpret3(Context* t, const int base)
 {
+  if (UNLIKELY(t->exception)) {
+    pokeInt(t, t->frame + FrameIpOffset, t->ip);
+    for (; t->frame >= base; popFrame(t)) {
+      uint64_t eh = findExceptionHandler(t, t->frame);
+      if (eh) {
+        t->sp = t->frame + FrameFootprint;
+        t->ip = exceptionHandlerIp(eh);
+        pushReference(t, t->exception);
+        t->exception = 0;
+        break;
+      }
+    }
+
+    if (t->exception) {
+      return 0;
+    }
+  }
+
   int oldBase = t->base;
   t->base = base;
   THREAD_RESOURCE(t, int, oldBase, static_cast<Context*>(t)->base = oldBase);

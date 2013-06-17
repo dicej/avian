@@ -32,12 +32,16 @@ parseBytecode(Context* c)
     goto check;
   }
 
-  // fprintf
-  //   (stderr, "interpret %s.%s%s %d\n",
-  //    &byteArrayBody(t, className(t, methodClass(t, contextMethod(c))), 0),
-  //    &byteArrayBody(t, methodName(t, contextMethod(c)), 0),
-  //    &byteArrayBody(t, methodSpec(t, contextMethod(c)), 0),
-  //    ip);
+  // if (methodName(t, contextMethod(c))) {
+  //   fprintf
+  //     (stderr, "interpret %s.%s%s %d\n",
+  //      &byteArrayBody(t, className(t, methodClass(t, contextMethod(c))), 0),
+  //      &byteArrayBody(t, methodName(t, contextMethod(c)), 0),
+  //      &byteArrayBody(t, methodSpec(t, contextMethod(c)), 0),
+  //      ip);
+  // } else {
+  //   fprintf(stderr, "interpret stub %d\n", ip);
+  // }
 
   instruction = codeBody(t, code, ip++);
 
@@ -96,7 +100,7 @@ parseBytecode(Context* c)
   } goto check;
 
   case arraylength: {
-    pushInt(c, loadWord(c, popReference(c), BytesPerWord));
+    pushInt(c, loadWord(c, nullCheck(c, popReference(c)), BytesPerWord));
   } goto loop;
 
   case astore: {
@@ -191,7 +195,7 @@ parseBytecode(Context* c)
   } goto loop;
 
   case dastore: {
-    Double value = popInt(c);
+    Double value = popDouble(c);
     Integer index = popInt(c);
     Reference array = popReference(c);
 
@@ -377,10 +381,10 @@ parseBytecode(Context* c)
       if (instruction == getfield) {
         target = nullCheck(c, popReference(c));
       } else {
+        initClass(t, fieldClass(t, field));
+
         target = referenceConstant
           (c, classStaticTable(t, fieldClass(t, field)));
-
-        initClass(t, fieldClass(t, field));
       }
     } else {
       offset = 0x7FFFFFFF;
@@ -1158,11 +1162,11 @@ parseBytecode(Context* c)
   } goto loop;
 
   case monitorenter: {
-    acquire(c, popReference(c));
+    acquire(c, nullCheck(c, popReference(c)));
   } goto loop;
 
   case monitorexit: {
-    release(c, popReference(c));
+    release(c, nullCheck(c, popReference(c)));
   } goto loop;
 
   case multianewarray: {
@@ -1229,11 +1233,12 @@ parseBytecode(Context* c)
 
       offset = fieldOffset(t, field);
       code = fieldCode(t, field);
-      table = classStaticTable(t, fieldClass(t, field));
 
       if (instruction == putstatic) {
         initClass(t, fieldClass(t, field));
       }
+
+      table = classStaticTable(t, fieldClass(t, field));
     } else {
       offset = 0x7FFFFFFF;
       code = fieldCode(t, byteArrayBody(t, referenceSpec(t, field), 0));
@@ -1371,6 +1376,8 @@ parseBytecode(Context* c)
     // real method and call it.
 
     popFrame(c);
+
+    code = methodCode(t, contextMethod(c));
 
     assert(t, codeBody(t, code, ip - 3) == invokevirtual);
     ip -= 2;
