@@ -62,6 +62,16 @@ Operand*
 operand(Context* c, object type, bool exactType = false,
         Value::V value = Value::V(static_cast<int64_t>(0)));
 
+Graph*
+makeGraph(Thread* t, Allocator* allocator, object method, object trace)
+{
+  unsigned length = trace ? traceLength(t, trace)
+    : codeLength(t, methodCode(t, method));
+
+  return new (allocator->allocate(sizeof(Graph) + (length * BytesPerWord)))
+    Graph(length);
+}
+
 class Context {
  public:
   class MyProtector: public Thread::Protector {
@@ -94,12 +104,8 @@ class Context {
     t(t),
     allocator(allocator),
     trace(trace),
-    graph
-    (static_cast<Graph*>
-     (allocator->allocate
-      (sizeof(Graph)
-       + (((trace ? traceLength(t, trace)
-            : codeLength(t, methodCode(t, method))) + 1) * BytesPerWord)))),
+    instruction(0),
+    graph(makeGraph(t, allocator, method, trace)),
     states(t->m->system, allocator, 0),
     frame(new (allocator) Frame
           (static_cast<Operand**>
@@ -107,7 +113,7 @@ class Context {
            static_cast<Operand**>
            (allocator->allocate(codeMaxStack(t, methodCode(t, method)))), 0)),
     references(0),
-    state(method, 0, InvalidIp),
+    state(method, 0, trace ? traceStart(t, trace) : 0),
     frameMask(0),
     protector(this)
   {
@@ -160,6 +166,10 @@ class Context {
           frame->locals[i++] = operand(this, type(t, Machine::JintType));
           break;
         }
+      }
+
+      while (i < codeMaxLocals(t, methodCode(t, method))) {
+        frame->locals[i++] = 0;
       }
     }
   }
@@ -319,7 +329,7 @@ visitInstruction(Context* c)
       return false;
     }
   } else {
-    Instruction* i = new (c->allocator) Instruction(c->frame);
+    i = new (c->allocator) Instruction(c->frame);
     c->instruction = i;
     c->graph->instructions[c->state.ip] = i;
   }
@@ -1738,47 +1748,50 @@ namespace dataflow {
 Graph*
 makeGraph(Thread* t, Allocator* allocator, object method, object trace)
 {
+  PROTECT(t, method);
+
   local::Context context(t, allocator, method, trace);
 
   local::parseBytecode(&context);
 
-  object eht = codeExceptionHandlerTable
-    (t, methodCode(t, contextMethod(&context)));
+  if (trace == 0) {
+    object eht = codeExceptionHandlerTable(t, methodCode(t, method));
 
-  if (eht) {
-    PROTECT(t, eht);
+    if (eht) {
+      PROTECT(t, eht);
 
-    unsigned visitCount = exceptionHandlerTableLength(t, eht);
+      unsigned visitCount = exceptionHandlerTableLength(t, eht);
 
-    THREAD_RUNTIME_ARRAY(t, bool, visited, visitCount);
-    memset(RUNTIME_ARRAY_BODY(visited), 0, visitCount * sizeof(bool));
+      THREAD_RUNTIME_ARRAY(t, bool, visited, visitCount);
+      memset(RUNTIME_ARRAY_BODY(visited), 0, visitCount * sizeof(bool));
 
-    bool progress = true;
-    while (progress) {
-      progress = false;
+      bool progress = true;
+      while (progress) {
+        progress = false;
 
-      for (unsigned i = 0; i < exceptionHandlerTableLength(t, eht); ++i) {
-        if (not RUNTIME_ARRAY_BODY(visited)[i]) {
-          uint64_t eh = exceptionHandlerTableBody(t, eht, i);
-          int start = resolveIpForwards
-            (&context, exceptionHandlerStart(eh), exceptionHandlerEnd(eh));
+        for (unsigned i = 0; i < exceptionHandlerTableLength(t, eht); ++i) {
+          if (not RUNTIME_ARRAY_BODY(visited)[i]) {
+            uint64_t eh = exceptionHandlerTableBody(t, eht, i);
+            int start = resolveIpForwards
+              (&context, exceptionHandlerStart(eh), exceptionHandlerEnd(eh));
 
-          if (start >= 0
-              and context.graph->instructions[start]->exit)
-          {
-            RUNTIME_ARRAY_BODY(visited)[i] = true;
-            progress = true;
-
-            unsigned end = exceptionHandlerEnd(eh);
-            if (exceptionHandlerIp(eh) >= static_cast<unsigned>(start)
-                and exceptionHandlerIp(eh) < end)
+            if (start >= 0
+                and context.graph->instructions[start]->exit)
             {
-              end = exceptionHandlerIp(eh);
+              RUNTIME_ARRAY_BODY(visited)[i] = true;
+              progress = true;
+
+              unsigned end = exceptionHandlerEnd(eh);
+              if (exceptionHandlerIp(eh) >= static_cast<unsigned>(start)
+                  and exceptionHandlerIp(eh) < end)
+              {
+                end = exceptionHandlerIp(eh);
+              }
+
+              contextIp(&context) = exceptionHandlerIp(eh);
+
+              parseBytecode(&context);
             }
-
-            contextIp(&context) = exceptionHandlerIp(eh);
-
-            parseBytecode(&context);
           }
         }
       }

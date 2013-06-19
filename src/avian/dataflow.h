@@ -293,7 +293,10 @@ class Instruction {
 
 class Graph {
  public:
-  Graph() { }
+  Graph(unsigned length)
+  {
+    memset(instructions, 0, length * BytesPerWord);
+  }
 
   Instruction* instructions[0];
 };

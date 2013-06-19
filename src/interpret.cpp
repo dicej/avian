@@ -955,7 +955,7 @@ popDouble(Context* t)
   return bitsToDouble(popLong(t));
 }
 
-object
+object&
 peekObject(Context* t, unsigned index)
 {
   if (DebugStack) {
@@ -964,7 +964,7 @@ peekObject(Context* t, unsigned index)
             index);
   }
 
-  return reinterpret_cast<object>(t->stack[index]);
+  return *reinterpret_cast<object*>(t->stack + index);
 }
 
 object
@@ -1033,7 +1033,7 @@ frameNext(Context* t, int frame)
   return peekInt(t, frame + FrameNextOffset);
 }
 
-object
+object&
 frameMethod(Context* t, int frame)
 {
   return peekObject(t, frame + FrameMethodOffset);
@@ -2114,6 +2114,8 @@ class MyProcessor: public Processor {
 
       virtual bool visit(StackWalker* vmw) {
         MyStackWalker* walker = static_cast<MyStackWalker*>(vmw);
+
+        v->visit(&frameMethod(t, walker->frame));
 
         using namespace vm::dataflow;
 
