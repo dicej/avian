@@ -925,7 +925,7 @@ parsePoolEntry(Thread* t, Stream& s, uint32_t* index, object pool, unsigned i)
     memcpy(&singletonValue(t, pool, i), &v, 8);
 
     if(DebugClassReader) {
-      fprintf(stderr, "    consts[%d] = long/double <todo>\n", i);
+      fprintf(stderr, "    consts[%d] = long/double %f\n", i, bitsToDouble(v));
     }
   } return 2;
 
@@ -944,12 +944,13 @@ parsePoolEntry(Thread* t, Stream& s, uint32_t* index, object pool, unsigned i)
     if (singletonObject(t, pool, i) == 0) {
       unsigned si = s.read2() - 1;
       parsePoolEntry(t, s, index, pool, si);
-        
+
       object value = makeReference(t, 0, singletonObject(t, pool, si), 0);
       set(t, pool, SingletonBody + (i * BytesPerWord), value);
 
       if(DebugClassReader) {
-        fprintf(stderr, "    consts[%d] = class <todo>\n", i);
+        fprintf(stderr, "    consts[%d] = class %s\n", i, &byteArrayBody
+                (t, singletonObject(t, pool, si), 0));
       }
     }
   } return 1;
@@ -966,7 +967,8 @@ parsePoolEntry(Thread* t, Stream& s, uint32_t* index, object pool, unsigned i)
       set(t, pool, SingletonBody + (i * BytesPerWord), value);
 
       if(DebugClassReader) {
-        fprintf(stderr, "    consts[%d] = string <todo>\n", i);
+        fprintf(stderr, "    consts[%d] = string %s\n", i, &byteArrayBody
+                (t, singletonObject(t, pool, si), 0));
       }
     }
   } return 1;
