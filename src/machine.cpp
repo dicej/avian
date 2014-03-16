@@ -961,7 +961,8 @@ parsePoolEntry(Thread* t, Stream& s, uint32_t* index, object pool, unsigned i)
         
       object value = parseUtf8(t, singletonObject(t, pool, si));
       value = t->m->classpath->makeString
-        (t, value, 0, fieldAtOffset<uintptr_t>(value, BytesPerWord) - 1);
+        (t, value, 0, fieldAtOffset<uintptr_t>
+         (value, ObjectHeaderInBytes) - 1);
       value = intern(t, value);
       set(t, pool, SingletonBody + (i * BytesPerWord), value);
 
@@ -1209,14 +1210,14 @@ parseFieldTable(Thread* t, Stream& s, object class_, object pool)
   PROTECT(t, class_);
   PROTECT(t, pool);
 
-  unsigned memberOffset = BytesPerWord;
+  unsigned memberOffset = ObjectHeaderInBytes;
   if (classSuper(t, class_)) {
     memberOffset = classFixedSize(t, classSuper(t, class_));
   }
 
   unsigned count = s.read2();
   if (count) {
-    unsigned staticOffset = BytesPerWord * 3;
+    unsigned staticOffset = ObjectHeaderInBytes + (BytesPerWord * 2);
     unsigned staticCount = 0;
   
     object fieldTable = makeArray(t, count);
@@ -2440,7 +2441,7 @@ makeArrayClass(Thread* t, object loader, unsigned dimensions, object spec,
     (t,
      0,
      0,
-     2 * BytesPerWord,
+     ArrayBody,
      BytesPerWord,
      dimensions,
      classObjectMask(t, type(t, Machine::ArrayType)),
@@ -2699,7 +2700,8 @@ boot(Thread* t)
 
   m->unsafe = true;
 
-  m->roots = allocate(t, pad((Machine::RootCount + 2) * BytesPerWord), true);
+  m->roots = allocate
+    (t, pad((Machine::RootCount * BytesPerWord) + ArrayBody), true);
   arrayLength(t, m->roots) = Machine::RootCount;
 
   setRoot(t, Machine::BootLoader,
@@ -2708,7 +2710,7 @@ boot(Thread* t)
   setRoot(t, Machine::AppLoader,
           allocate(t, FixedSizeOfSystemClassLoader, true));
 
-  m->types = allocate(t, pad((TypeCount + 2) * BytesPerWord), true);
+  m->types = allocate(t, pad((TypeCount * BytesPerWord) + ArrayBody), true);
   arrayLength(t, m->types) = TypeCount;
 
 #include "type-initializations.cpp"
@@ -4788,7 +4790,8 @@ walk(Thread* t, Heap::Walker* w, object o, unsigned start)
     unsigned length = singletonLength(t, o);
     if (length) {
       more = ::walk(t, w, singletonMask(t, o),
-                    (singletonCount(t, o) + 2) * BytesPerWord, 0, 0, start);
+                    (singletonCount(t, o) + SingletonHeaderInWords)
+                    * BytesPerWord, 0, 0, start);
     } else if (start == 0) {
       more = w->visit(0);
     }

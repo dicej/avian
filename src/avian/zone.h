@@ -31,12 +31,14 @@ class Zone : public avian::util::Allocator {
     uint8_t data[0];
   };
 
-  Zone(System* s, Allocator* allocator, unsigned minimumFootprint):
+  Zone(System* s, Allocator* allocator, unsigned minimumFootprint,
+       bool ignoreFree = false):
     s(s),
     allocator(allocator),
     segment(0),
     minimumFootprint(minimumFootprint < sizeof(Segment) ? 0 :
-                     minimumFootprint - sizeof(Segment))
+                     minimumFootprint - sizeof(Segment)),
+    ignoreFree(ignoreFree)
   { }
 
   ~Zone() {
@@ -135,9 +137,15 @@ class Zone : public avian::util::Allocator {
     segment = s;
   }
 
+  bool isEmpty() {
+    return segment == 0 or (segment->position == 0 and segment->next == 0);
+  }
+
   virtual void free(const void*, unsigned) {
-    // not supported
-    abort(s);
+    if (not ignoreFree) {
+      // not supported
+      abort(s);
+    }
   }
   
   System* s;
@@ -145,6 +153,7 @@ class Zone : public avian::util::Allocator {
   void* context;
   Segment* segment;
   unsigned minimumFootprint;
+  bool ignoreFree;
 };
 
 } // namespace vm

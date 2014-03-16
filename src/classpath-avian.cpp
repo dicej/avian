@@ -453,7 +453,7 @@ Avian_java_lang_reflect_Array_getLength
     unsigned elementSize = classArrayElementSize(t, objectClass(t, array));
 
     if (LIKELY(elementSize)) {
-      return fieldAtOffset<uintptr_t>(array, BytesPerWord);
+      return fieldAtOffset<uintptr_t>(array, ObjectHeaderInBytes);
     } else {
       throwNew(t, Machine::IllegalArgumentExceptionType);
     }

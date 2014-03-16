@@ -1115,6 +1115,7 @@ vm-sources = \
 	$(src)/machine.cpp \
 	$(src)/util.cpp \
 	$(src)/heap/heap.cpp \
+	$(src)/dataflow.cpp \
 	$(src)/$(process).cpp \
 	$(src)/classpath-$(classpath).cpp \
 	$(src)/builtin.cpp \

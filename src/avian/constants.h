@@ -274,6 +274,13 @@ const int AVIAN_JNI_VERSION_1_1 = 0x00010001;
 const int AVIAN_JNI_VERSION_1_2 = 0x00010002;
 const int AVIAN_JNI_VERSION_1_4 = 0x00010004;
 
+// This is the size of any additional space in the header of each Java
+// object allocated by the VM beyond the default space allocated for
+// the class pointer.  Note that it must be divisble by the word size
+// for the target architecture, which may not be the same as the host
+// architecture (e.g. cross compilation).
+const unsigned ObjectTagInBytes = 0;
+
 } // namespace vm
 
 #endif//CONSTANTS_H

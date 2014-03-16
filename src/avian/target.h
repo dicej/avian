@@ -11,6 +11,7 @@
 #ifndef TARGET_H
 #define TARGET_H
 
+#include "avian/constants.h"
 #include "avian/target-fields.h"
 #include "avian/common.h"
 
@@ -102,6 +103,12 @@ targetV8(T v)
 #endif
 
 #ifdef TARGET_BYTES_PER_WORD
+
+const unsigned TargetBytesPerWord = TARGET_BYTES_PER_WORD;
+
+const unsigned TargetObjectHeaderInBytes
+= TargetBytesPerWord + ObjectTagInBytes;
+
 #  if (TARGET_BYTES_PER_WORD == 8)
 
 template <class T>
@@ -114,11 +121,11 @@ targetVW(T v)
 typedef uint64_t target_uintptr_t;
 typedef int64_t target_intptr_t;
 
-const unsigned TargetClassFixedSize = 12;
-const unsigned TargetClassArrayElementSize = 14;
-const unsigned TargetClassVtable = 128;
+const unsigned TargetClassFixedSize = TargetObjectHeaderInBytes + 4;
+const unsigned TargetClassArrayElementSize = TargetObjectHeaderInBytes + 6;
+const unsigned TargetClassVtable = TargetObjectHeaderInBytes + 120;
 
-const unsigned TargetFieldOffset = 12;
+const unsigned TargetFieldOffset = TargetObjectHeaderInBytes + 4;
 
 #  elif (TARGET_BYTES_PER_WORD == 4)
 
@@ -132,11 +139,11 @@ targetVW(T v)
 typedef uint32_t target_uintptr_t;
 typedef int32_t target_intptr_t;
 
-const unsigned TargetClassFixedSize = 8;
-const unsigned TargetClassArrayElementSize = 10;
-const unsigned TargetClassVtable = 68;
+const unsigned TargetClassFixedSize = TargetObjectHeaderInBytes + 4;
+const unsigned TargetClassArrayElementSize = TargetObjectHeaderInBytes + 6;
+const unsigned TargetClassVtable = TargetObjectHeaderInBytes + 64;
 
-const unsigned TargetFieldOffset = 8;
+const unsigned TargetFieldOffset = TargetObjectHeaderInBytes + 4;
 
 #  else
 #    error
@@ -145,16 +152,14 @@ const unsigned TargetFieldOffset = 8;
 #  error
 #endif
 
-const unsigned TargetBytesPerWord = TARGET_BYTES_PER_WORD;
-
 const unsigned TargetBitsPerWord = TargetBytesPerWord * 8;
 
 const target_uintptr_t TargetPointerMask
 = ((~static_cast<target_uintptr_t>(0)) / TargetBytesPerWord)
   * TargetBytesPerWord;
 
-const unsigned TargetArrayLength = TargetBytesPerWord;
-const unsigned TargetArrayBody = TargetBytesPerWord * 2;
+const unsigned TargetArrayLength = TargetObjectHeaderInBytes;
+const unsigned TargetArrayBody = TargetObjectHeaderInBytes + TargetBytesPerWord;
 
 inline void
 targetMarkBit(target_uintptr_t* map, unsigned i)

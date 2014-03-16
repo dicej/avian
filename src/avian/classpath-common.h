@@ -80,8 +80,8 @@ arrayCopy(Thread* t, object src, int32_t srcOffset, object dst,
       unsigned elementSize = classArrayElementSize(t, objectClass(t, src));
 
       if (LIKELY(elementSize)) {
-        intptr_t sl = fieldAtOffset<uintptr_t>(src, BytesPerWord);
-        intptr_t dl = fieldAtOffset<uintptr_t>(dst, BytesPerWord);
+        intptr_t sl = fieldAtOffset<uintptr_t>(src, ObjectHeaderInBytes);
+        intptr_t dl = fieldAtOffset<uintptr_t>(dst, ObjectHeaderInBytes);
         if (LIKELY(length > 0)) {
           if (LIKELY(srcOffset >= 0 and srcOffset + length <= sl and
                      dstOffset >= 0 and dstOffset + length <= dl))

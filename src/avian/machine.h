@@ -38,10 +38,10 @@ using namespace avian::util;
   ObjectMonitorResource MAKE_NAME(monitorResource_) (t, x)
 
 #define ACQUIRE_FIELD_FOR_READ(t, field) \
-  FieldReadResource MAKE_NAME(monitorResource_) (t, field)
+  FieldReadResource MAKE_NAME(fieldResource_) (t, field)
 
 #define ACQUIRE_FIELD_FOR_WRITE(t, field) \
-  FieldWriteResource MAKE_NAME(monitorResource_) (t, field)
+  FieldWriteResource MAKE_NAME(fieldResource_) (t, field)
 
 #define ACQUIRE_RAW(t, x) RawMonitorResource MAKE_NAME(monitorResource_) (t, x)
 
@@ -106,6 +106,8 @@ const bool DebugMonitors = false;
 const bool DebugReferences = false;
 
 const bool AbortOnOutOfMemoryError = false;
+
+const unsigned ObjectHeaderInBytes = BytesPerWord + ObjectTagInBytes;
 
 const uintptr_t HashTakenMark = 1;
 const uintptr_t ExtendedMark = 2;
@@ -2804,15 +2806,15 @@ findInterfaceMethod(Thread* t, object method, object class_)
 inline unsigned
 objectArrayLength(Thread* t UNUSED, object array)
 {
-  assert(t, classFixedSize(t, objectClass(t, array)) == BytesPerWord * 2);
+  assert(t, classFixedSize(t, objectClass(t, array)) == ArrayBody);
   assert(t, classArrayElementSize(t, objectClass(t, array)) == BytesPerWord);
-  return fieldAtOffset<uintptr_t>(array, BytesPerWord);
+  return fieldAtOffset<uintptr_t>(array, ObjectHeaderInBytes);
 }
 
 inline object&
 objectArrayBody(Thread* t UNUSED, object array, unsigned index)
 {
-  assert(t, classFixedSize(t, objectClass(t, array)) == BytesPerWord * 2);
+  assert(t, classFixedSize(t, objectClass(t, array)) == ArrayBody);
   assert(t, classArrayElementSize(t, objectClass(t, array)) == BytesPerWord);
   assert(t, classObjectMask(t, objectClass(t, array))
          == classObjectMask(t, arrayBody
@@ -3359,11 +3361,14 @@ methodVirtual(Thread* t, object method)
     and byteArrayBody(t, methodName(t, method), 0) != '<';
 }
 
+const unsigned SingletonHeaderInWords
+= (ObjectHeaderInBytes + BytesPerWord) / BytesPerWord;
+
 inline unsigned
 singletonMaskSize(unsigned count, unsigned bitsPerWord)
 {
   if (count) {
-    return ceilingDivide(count + 2, bitsPerWord);
+    return ceilingDivide(count + SingletonHeaderInWords, bitsPerWord);
   }
   return 0;
 }
@@ -3379,7 +3384,7 @@ singletonMaskSize(Thread* t, object singleton)
 {
   unsigned length = singletonLength(t, singleton);
   if (length) {
-    return ceilingDivide(length + 2, BitsPerWord + 1);
+    return ceilingDivide(length + SingletonHeaderInWords, BitsPerWord + 1);
   }
   return 0;
 }
@@ -3401,8 +3406,8 @@ singletonMask(Thread* t, object singleton)
 inline void
 singletonMarkObject(uint32_t* mask, unsigned index)
 {
-  mask[(index + 2) / 32]
-    |= (static_cast<uint32_t>(1) << ((index + 2) % 32));
+  mask[(index + SingletonHeaderInWords) / 32]
+    |= (static_cast<uint32_t>(1) << ((index + SingletonHeaderInWords) % 32));
 }
 
 inline void
@@ -3416,8 +3421,10 @@ singletonIsObject(Thread* t, object singleton, unsigned index)
 {
   assert(t, index < singletonCount(t, singleton));
 
-  return (singletonMask(t, singleton)[(index + 2) / 32]
-          & (static_cast<uint32_t>(1) << ((index + 2) % 32))) != 0;
+  return (singletonMask(t, singleton)[(index + SingletonHeaderInWords) / 32]
+          & (static_cast<uint32_t>(1)
+             << ((index + SingletonHeaderInWords) % 32)))
+    != 0;
 }
 
 inline object&
@@ -3505,24 +3512,35 @@ resolveClassInObject(Thread* t, object loader, object container,
   return o; 
 }
 
+enum ResolveStrategy {
+  ResolveOrThrow,
+  ResolveOrNull,
+  NoResolve
+};
+
 inline object
 resolveClassInPool(Thread* t, object loader, object method, unsigned index,
-                   bool throw_ = true)
+                   ResolveStrategy strategy = ResolveOrThrow)
 {
   object o = singletonObject(t, codePool(t, methodCode(t, method)), index);
 
   loadMemoryBarrier();
 
   if (objectClass(t, o) == type(t, Machine::ReferenceType)) {
-    PROTECT(t, method);
+    if (strategy == NoResolve) {
+      return type(t, Machine::JobjectType);
+    } else {
+      PROTECT(t, method);
 
-    o = resolveClass(t, loader, referenceName(t, o), throw_);
+      o = resolveClass
+        (t, loader, referenceName(t, o), strategy == ResolveOrThrow);
     
-    if (o) {
-      storeStoreMemoryBarrier();
+      if (o) {
+        storeStoreMemoryBarrier();
 
-      set(t, codePool(t, methodCode(t, method)),
-          SingletonBody + (index * BytesPerWord), o);
+        set(t, codePool(t, methodCode(t, method)),
+            SingletonBody + (index * BytesPerWord), o);
+      }
     }
   }
   return o; 
@@ -3530,33 +3548,36 @@ resolveClassInPool(Thread* t, object loader, object method, unsigned index,
 
 inline object
 resolveClassInPool(Thread* t, object method, unsigned index,
-                   bool throw_ = true)
+                   ResolveStrategy strategy = ResolveOrThrow)
 {
   return resolveClassInPool(t, classLoader(t, methodClass(t, method)),
-                            method, index, throw_);
+                            method, index, strategy);
 }
 
 inline object
 resolve(Thread* t, object loader, object method, unsigned index,
         object (*find)(vm::Thread*, object, object, object),
-        Machine::Type errorType, bool throw_ = true)
+        Machine::Type errorType, ResolveStrategy strategy = ResolveOrThrow)
 {
   object o = singletonObject(t, codePool(t, methodCode(t, method)), index);
 
   loadMemoryBarrier();  
 
-  if (objectClass(t, o) == type(t, Machine::ReferenceType)) {
+  if (objectClass(t, o) == type(t, Machine::ReferenceType)
+      and strategy != NoResolve)
+  {
     PROTECT(t, method);
 
     object reference = o;
     PROTECT(t, reference);
 
-    object class_ = resolveClassInObject(t, loader, o, ReferenceClass, throw_);
+    object class_ = resolveClassInObject
+      (t, loader, o, ReferenceClass, strategy);
     
     if (class_) {
       o = findInHierarchy
         (t, class_, referenceName(t, reference), referenceSpec(t, reference),
-         find, errorType, throw_);
+         find, errorType, strategy == ResolveOrThrow);
     
       if (o) {
         storeStoreMemoryBarrier();
@@ -3574,17 +3595,18 @@ resolve(Thread* t, object loader, object method, unsigned index,
 
 inline object
 resolveField(Thread* t, object loader, object method, unsigned index,
-             bool throw_ = true)
+             ResolveStrategy strategy = ResolveOrThrow)
 {
   return resolve(t, loader, method, index, findFieldInClass,
-                 Machine::NoSuchFieldErrorType, throw_);
+                 Machine::NoSuchFieldErrorType, strategy);
 }
 
 inline object
-resolveField(Thread* t, object method, unsigned index, bool throw_ = true)
+resolveField(Thread* t, object method, unsigned index,
+             ResolveStrategy strategy = ResolveOrThrow)
 {
   return resolveField
-    (t, classLoader(t, methodClass(t, method)), method, index, throw_);
+    (t, classLoader(t, methodClass(t, method)), method, index, strategy);
 }
 
 inline void
@@ -3676,17 +3698,18 @@ class FieldWriteResource {
 
 inline object
 resolveMethod(Thread* t, object loader, object method, unsigned index,
-                   bool throw_ = true)
+              ResolveStrategy strategy = ResolveOrThrow)
 {
   return resolve(t, loader, method, index, findMethodInClass,
-                 Machine::NoSuchMethodErrorType, throw_);
+                 Machine::NoSuchMethodErrorType, strategy);
 }
 
 inline object
-resolveMethod(Thread* t, object method, unsigned index, bool throw_ = true)
+resolveMethod(Thread* t, object method, unsigned index,
+              ResolveStrategy strategy = ResolveOrThrow)
 {
   return resolveMethod
-    (t, classLoader(t, methodClass(t, method)), method, index, throw_);
+    (t, classLoader(t, methodClass(t, method)), method, index, strategy);
 }
 
 object

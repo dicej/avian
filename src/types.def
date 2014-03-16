@@ -158,6 +158,13 @@
 
 (type innerClassReference avian/InnerClassReference)
 
+(type trace
+  (unsigned start)
+  (unsigned length)
+  (object locals)
+  (object stack)
+  (object event))
+
 (type continuationContext
   (object next)
   (object before)
