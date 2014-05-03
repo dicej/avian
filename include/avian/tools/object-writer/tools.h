@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2013, Avian Contributors
+/* Copyright (c) 2008-2014, Avian Contributors
 
    Permission to use, copy, modify, and/or distribute this software
    for any purpose with or without fee is hereby granted, provided
@@ -114,7 +114,6 @@ public:
   enum Architecture {
     x86 = AVIAN_ARCH_X86,
     x86_64 = AVIAN_ARCH_X86_64,
-    PowerPC = AVIAN_ARCH_POWERPC,
     Arm = AVIAN_ARCH_ARM,
     UnknownArch = AVIAN_ARCH_UNKNOWN
   };
@@ -131,10 +130,6 @@ public:
 
   inline bool operator == (const PlatformInfo& other) {
     return format == other.format && arch == other.arch;
-  }
-
-  inline bool isLittleEndian() {
-    return arch != PowerPC;
   }
 };
 

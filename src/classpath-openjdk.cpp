@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2013, Avian Contributors
+/* Copyright (c) 2008-2014, Avian Contributors
 
    Permission to use, copy, modify, and/or distribute this software
    for any purpose with or without fee is hereby granted, provided
@@ -681,6 +681,11 @@ class MyClasspath : public Classpath {
     // ignore
   }
 
+  virtual bool mayInitClasses()
+  {
+    return true;
+  }
+
   virtual void
   boot(Thread* t)
   {
@@ -772,62 +777,6 @@ class MyClasspath : public Classpath {
   bootClasspath()
   {
     return classpath;
-  }
-
-  virtual void
-  updatePackageMap(Thread* t, object class_)
-  {
-    PROTECT(t, class_);
-
-    if (root(t, Machine::PackageMap) == 0) {
-      setRoot(t, Machine::PackageMap, makeHashMap(t, 0, 0));
-    }
-
-    object className = vm::className(t, class_);
-    if ('[' != byteArrayBody(t, className, 0)) {
-      THREAD_RUNTIME_ARRAY
-        (t, char, packageName, byteArrayLength(t, className));
-
-      char* s = reinterpret_cast<char*>(&byteArrayBody(t, className, 0));
-      char* p = strrchr(s, '/');
-
-      if (p) {
-        int length = (p - s) + 1;
-        memcpy(RUNTIME_ARRAY_BODY(packageName),
-               &byteArrayBody(t, className, 0),
-               length);
-        RUNTIME_ARRAY_BODY(packageName)[length] = 0;
-
-        object key = vm::makeByteArray
-          (t, "%s", RUNTIME_ARRAY_BODY(packageName));
-        PROTECT(t, key);
-
-        hashMapRemove
-          (t, root(t, Machine::PackageMap), key, byteArrayHash,
-           byteArrayEqual);
-
-        object source = classSource(t, class_);
-        if (source) {
-          // note that we strip the "file:" prefix, since
-          // Package.defineSystemPackage expects an unadorned
-          // filename:
-          const unsigned PrefixLength = 5;
-          unsigned sourceNameLength = byteArrayLength(t, source)
-            - PrefixLength;
-          THREAD_RUNTIME_ARRAY(t, char, sourceName, sourceNameLength);
-          memcpy(RUNTIME_ARRAY_BODY(sourceName),
-                 &byteArrayBody(t, source, PrefixLength),
-                 sourceNameLength);
-
-          source = vm::makeByteArray(t, "%s", RUNTIME_ARRAY_BODY(sourceName));
-        } else {
-          source = vm::makeByteArray(t, "avian-dummy-package-source");
-        }
-
-        hashMapInsert
-          (t, root(t, Machine::PackageMap), key, source, byteArrayHash);
-      }
-    }
   }
 
   virtual object
@@ -2187,6 +2136,58 @@ countConstructors(Thread* t, object c, bool publicOnly)
   return count;
 }
 
+#ifdef HAVE_JexecutableHasRealParameterData
+object
+makeJmethod(Thread* t,
+            uint8_t override,
+            object securityCheckCache,
+            object clazz,
+            uint32_t slot,
+            object name,
+            object returnType,
+            object parameterTypes,
+            object exceptionTypes,
+            uint32_t modifiers,
+            object signature,
+            object genericInfo,
+            object annotations,
+            object parameterAnnotations,
+            object annotationDefault,
+            object methodAccessor,
+            object root,
+            object declaredAnnotations)
+{
+  return makeJmethod
+    (t, override, securityCheckCache, 0, 0, declaredAnnotations, clazz, slot,
+     name, returnType, parameterTypes, exceptionTypes, modifiers, signature,
+     genericInfo, annotations, parameterAnnotations, annotationDefault,
+     methodAccessor, root);
+}
+
+object
+makeJconstructor(Thread* t,
+                 uint8_t override,
+                 object securityCheckCache,
+                 object clazz,
+                 uint32_t slot,
+                 object parameterTypes,
+                 object exceptionTypes,
+                 uint32_t modifiers,
+                 object signature,
+                 object genericInfo,
+                 object annotations,
+                 object parameterAnnotations,
+                 object constructorAccessor,
+                 object root,
+                 object declaredAnnotations)
+{
+  return makeJconstructor
+    (t, override, securityCheckCache, 0, 0, declaredAnnotations, clazz, slot,
+     parameterTypes, exceptionTypes, modifiers, signature, genericInfo,
+     annotations, parameterAnnotations, constructorAccessor, root);
+}
+#endif // HAVE_JexecutableHasRealParameterData
+
 object
 makeJmethod(Thread* t, object vmMethod, int index)
 {
@@ -2985,8 +2986,6 @@ jvmInitProperties(Thread* t, uintptr_t* arguments)
   local::setProperty(t, method, *properties, "os.arch", "x86");
 #elif defined ARCH_x86_64
   local::setProperty(t, method, *properties, "os.arch", "x86_64");
-#elif defined ARCH_powerpc
-  local::setProperty(t, method, *properties, "os.arch", "ppc");
 #elif defined ARCH_arm
   local::setProperty(t, method, *properties, "os.arch", "arm");
 #else
@@ -3132,7 +3131,13 @@ EXPORT(JVM_FindLibraryEntry)(void* library, const char* name)
     library = t->m->libraries;
   }
 
-  return static_cast<System::Library*>(library)->resolve(name);
+  for (System::Library* lib = t->m->libraries; lib; lib = lib->next()) {
+    if (library == lib) {
+      return lib->resolve(name);
+    }
+  }
+
+  return 0;
 }
 
 extern "C" AVIAN_EXPORT jboolean JNICALL
@@ -3933,6 +3938,14 @@ EXPORT(JVM_DefineClassWithSource)(Thread* t, const char*, jobject loader,
   return EXPORT(JVM_DefineClass)(t, 0, loader, data, length, 0);
 }
 
+extern "C" AVIAN_EXPORT jclass JNICALL
+EXPORT(JVM_DefineClassWithSourceCond)(Thread* t, const char*, jobject loader,
+                                      const uint8_t* data, jsize length,
+                                      jobject, const char*, jboolean)
+{
+  return EXPORT(JVM_DefineClass)(t, 0, loader, data, length, 0);
+}
+
 extern "C" AVIAN_EXPORT jstring JNICALL
 EXPORT(JVM_GetClassName)(Thread* t, jclass c)
 {
@@ -4021,6 +4034,24 @@ EXPORT(JVM_GetClassSigners)(Thread* t, jclass c)
 
   return runtimeData ? makeLocalReference
     (t, classRuntimeDataSigners(t, runtimeData)) : 0;
+}
+
+extern "C" AVIAN_EXPORT jbyteArray JNICALL
+EXPORT(JVM_GetClassTypeAnnotations)(Thread*, jclass)
+{
+  abort();
+}
+
+extern "C" AVIAN_EXPORT jbyteArray JNICALL
+EXPORT(JVM_GetFieldTypeAnnotations)(Thread*, jobject)
+{
+  abort();
+}
+
+extern "C" AVIAN_EXPORT jbyteArray JNICALL
+EXPORT(JVM_GetMethodTypeAnnotations)(Thread*, jobject)
+{
+  abort();
 }
 
 extern "C" AVIAN_EXPORT void JNICALL
@@ -4704,6 +4735,9 @@ EXPORT(JVM_GetMethodIxMaxStack)(Thread*, jclass, int) { abort(); }
 
 extern "C" AVIAN_EXPORT jboolean JNICALL
 EXPORT(JVM_IsConstructorIx)(Thread*, jclass, int) { abort(); }
+
+extern "C" AVIAN_EXPORT jboolean JNICALL
+EXPORT(JVM_IsVMGeneratedMethodIx)(Thread*, jclass, int) { abort(); }
 
 extern "C" AVIAN_EXPORT const char* JNICALL
 EXPORT(JVM_GetMethodIxNameUTF)(Thread*, jclass, jint) { abort(); }

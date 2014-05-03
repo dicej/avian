@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2013, Avian Contributors
+/* Copyright (c) 2008-2014, Avian Contributors
 
    Permission to use, copy, modify, and/or distribute this software
    for any purpose with or without fee is hereby granted, provided
@@ -67,8 +67,6 @@ typedef unsigned __int64 uint64_t;
 #    define ARCH_x86_32
 #  elif defined __x86_64__
 #    define ARCH_x86_64
-#  elif (defined __POWERPC__) || (defined __powerpc__)
-#    define ARCH_powerpc
 #  elif defined __arm__
 #    define ARCH_arm
 #  endif

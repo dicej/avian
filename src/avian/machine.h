@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2013, Avian Contributors
+/* Copyright (c) 2008-2014, Avian Contributors
 
    Permission to use, copy, modify, and/or distribute this software
    for any purpose with or without fee is hereby granted, provided
@@ -186,10 +186,6 @@ struct JavaVMVTable {
   void* reserved1;
   void* reserved2;
 
-#if (! TARGET_RT_MAC_CFM) && defined(__ppc__)
-  void* cfm_vectors[4];
-#endif
-
   jint
   (JNICALL *DestroyJavaVM)
   (JavaVM*);
@@ -209,10 +205,6 @@ struct JavaVMVTable {
   jint
   (JNICALL *AttachCurrentThreadAsDaemon)
   (JavaVM*, JNIEnv**, void*);
-
-#if TARGET_RT_MAC_CFM && defined(__ppc__)
-    void* real_functions[5];
-#endif
 };
 
 struct JNIEnvVTable {
@@ -220,10 +212,6 @@ struct JNIEnvVTable {
   void* reserved1;
   void* reserved2;
   void* reserved3;
-
-#if (! TARGET_RT_MAC_CFM) && defined(__ppc__)
-  void* cfm_vectors[225];
-#endif
 
   jint
   (JNICALL *GetVersion)
@@ -1141,9 +1129,6 @@ struct JNIEnvVTable {
   (JNICALL *GetDirectBufferCapacity)
     (JNIEnv*, jobject);
 
-#if TARGET_RT_MAC_CFM && defined(__ppc__)
-  void* real_functions[228];
-#endif
 };
 
 inline void
@@ -1265,7 +1250,7 @@ class Machine {
   Thread* exclusive;
   Thread* finalizeThread;
   Reference* jniReferences;
-  const char** properties;
+  char** properties;
   unsigned propertyCount;
   const char** arguments;
   unsigned argumentCount;
@@ -1573,14 +1558,13 @@ class Classpath {
   virtual void
   preBoot(Thread* t) = 0;
 
+  virtual bool mayInitClasses() = 0;
+
   virtual void
   boot(Thread* t) = 0;
 
   virtual const char*
   bootClasspath() = 0;
-
-  virtual void
-  updatePackageMap(Thread* t, object class_) = 0;
 
   virtual object
   makeDirectByteBuffer(Thread* t, void* p, jlong capacity) = 0;
@@ -1844,6 +1828,7 @@ allocate(Thread* t, unsigned sizeInBytes, bool objectMask)
   {
     return allocate2(t, sizeInBytes, objectMask);
   } else {
+    assert(t, t->criticalLevel == 0);
     return allocateSmall(t, sizeInBytes);
   }
 }
@@ -2200,6 +2185,16 @@ stringOffset(Thread*, object)
   return 0;
 }
 
+#  ifndef HAVE_StringHash32
+
+inline object
+makeString(Thread* t, object data, int32_t hash, int32_t)
+{
+  return makeString(t, data, hash);
+}
+
+#  endif // not HAVE_StringHash32
+
 inline object
 makeString(Thread* t, object data, unsigned offset, unsigned length, unsigned)
 {
@@ -2479,16 +2474,33 @@ fieldSize(Thread* t, object field)
 }
 
 inline void
-scanMethodSpec(Thread* t, const char* s, unsigned* parameterCount,
+scanMethodSpec(Thread* t, const char* s, bool static_,
+               unsigned* parameterCount, unsigned* parameterFootprint,
                unsigned* returnCode)
 {
   unsigned count = 0;
+  unsigned footprint = 0;
   MethodSpecIterator it(t, s);
-  for (; it.hasNext(); it.next()) {
+  while (it.hasNext()) {
     ++ count;
+    switch (*it.next()) {
+    case 'J':
+    case 'D':
+      footprint += 2;
+      break;
+
+    default:
+      ++ footprint;
+      break;        
+    }
+  }
+
+  if (not static_) {
+    ++ footprint;
   }
 
   *parameterCount = count;
+  *parameterFootprint = footprint;
   *returnCode = fieldCode(t, *it.returnSpec());
 }
 

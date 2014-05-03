@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2013, Avian Contributors
+/* Copyright (c) 2008-2014, Avian Contributors
 
    Permission to use, copy, modify, and/or distribute this software
    for any purpose with or without fee is hereby granted, provided
@@ -22,6 +22,7 @@ extern "C" int JNI_OnLoad(JavaVM*, void*);
 #include "avian/machine.h"
 #include "avian/classpath-common.h"
 #include "avian/process.h"
+#include "avian/util.h"
 
 #ifdef PLATFORM_WINDOWS
 const char* getErrnoDescription(int err);		// This function is defined in mingw-extensions.cpp
@@ -58,7 +59,14 @@ loadLibrary(Thread* t, object, uintptr_t* arguments)
   THREAD_RUNTIME_ARRAY(t, char, n, length + 1);
   stringChars(t, name, RUNTIME_ARRAY_BODY(n));
 
-  loadLibrary(t, "", RUNTIME_ARRAY_BODY(n), true, true);
+  /* org_conscrypt_NativeCrypto.o is linked statically, and in Avian build
+  the package is named org.conscrypt.NativeCrypto. When Android code sees
+  that name it thinks the library isn't linked as a part of Android, so it
+  tries to load in dynamically, but there's actually no need to, so we
+  just ignore this request. */
+  if (strcmp(RUNTIME_ARRAY_BODY(n), "conscrypt_jni") != 0) {
+    loadLibrary(t, "", RUNTIME_ARRAY_BODY(n), true, true);
+  }
 }
 
 void JNICALL
@@ -220,9 +228,8 @@ translateStackTrace(Thread* t, object raw)
 
 class MyClasspath : public Classpath {
  public:
-  MyClasspath(Allocator* allocator):
-    allocator(allocator),
-    tzdata(0)
+  MyClasspath(Allocator* allocator)
+      : allocator(allocator), tzdata(0), mayInitClasses_(false)
   { }
 
   virtual object
@@ -485,24 +492,38 @@ class MyClasspath : public Classpath {
     JniConstants::init(reinterpret_cast<_JNIEnv*>(t));
 
     JNI_OnLoad(reinterpret_cast< ::JavaVM*>(t->m), 0);
+
+    mayInitClasses_ = true;
+  }
+
+  virtual bool mayInitClasses()
+  {
+    return mayInitClasses_;
   }
 
   virtual void
-  boot(Thread*)
+  boot(Thread* t)
   {
-    // ignore
+    object c = resolveClass
+      (t, root(t, Machine::BootLoader), "java/lang/ClassLoader");
+    PROTECT(t, c);
+
+    object constructor = resolveMethod
+      (t, c, "<init>", "(Ljava/lang/ClassLoader;Z)V");
+    PROTECT(t, constructor);
+
+    t->m->processor->invoke
+      (t, constructor, root(t, Machine::BootLoader), 0, true);
+
+    t->m->processor->invoke
+      (t, constructor, root(t, Machine::AppLoader),
+       root(t, Machine::BootLoader), false);
   }
 
   virtual const char*
   bootClasspath()
   {
     return AVIAN_CLASSPATH;
-  }
-
-  virtual void
-  updatePackageMap(Thread*, object)
-  {
-    // ignore
   }
 
   virtual object
@@ -564,6 +585,7 @@ class MyClasspath : public Classpath {
 
   Allocator* allocator;
   System::Region* tzdata;
+  bool mayInitClasses_;
 };
 
 int64_t JNICALL
@@ -895,6 +917,21 @@ jniStrError(int error, char* buffer, size_t length)
 #endif
 }
 
+/*
+ * Android log priority values (as text)
+ */
+const char * const androidLogPriorityTitles[] = {
+    "UNKNOWN",
+    "DEFAULT",
+    "VERBOSE",
+    "DEBUG",
+    "INFO",
+    "WARNING",
+    "ERROR",
+    "FATAL",
+    "SILENT"
+};
+
 extern "C" int
 __android_log_print(int priority, const char* tag,  const char* format, ...)
 {
@@ -906,7 +943,11 @@ __android_log_print(int priority, const char* tag,  const char* format, ...)
   ::vsnprintf(buffer, size, format, a);
   va_end(a);
 
-  return fprintf(stderr, "%d %s %s\n", priority, tag, buffer);
+#ifndef PLATFORM_WINDOWS
+  return printf("[%s] %s: %s\n", androidLogPriorityTitles[priority], tag, buffer);
+#else
+  return __mingw_fprintf(stderr, "[%s] %s: %s\n", androidLogPriorityTitles[priority], tag, buffer);
+#endif
 }
 
 extern "C" int
@@ -1280,13 +1321,21 @@ extern "C" AVIAN_EXPORT int64_t JNICALL
 Avian_dalvik_system_VMRuntime_properties
 (Thread* t, object, uintptr_t*)
 {
-  object array = makeObjectArray(t, type(t, Machine::StringType), 1);
+  object array = makeObjectArray(
+      t, type(t, Machine::StringType), t->m->propertyCount + 1);
   PROTECT(t, array);
 
-  object property = makeString(t, "java.protocol.handler.pkgs=avian");
+  unsigned i;
+  for (i = 0; i < t->m->propertyCount; ++i) {
+    object s = makeString(t, "%s", t->m->properties[i]);
+    set(t, array, ArrayBody + (i * BytesPerWord), s);
+  }
 
-  set(t, array, ArrayBody, property);
-  
+  {
+    object s = makeString(t, "%s", "java.protocol.handler.pkgs=avian");
+    set(t, array, ArrayBody + (i++ * BytesPerWord), s);
+  }
+
   return reinterpret_cast<uintptr_t>(array);
 }
 
@@ -2178,11 +2227,7 @@ extern "C" AVIAN_EXPORT int64_t JNICALL
 Avian_java_nio_ByteOrder_isLittleEndian
 (Thread*, object, uintptr_t*)
 {
-#ifdef ARCH_powerpc
-  return false;
-#else
   return true;
-#endif
 }
 
 extern "C" AVIAN_EXPORT int64_t JNICALL
@@ -2308,22 +2353,6 @@ Avian_java_lang_System_identityHashCode
 }
 
 extern "C" AVIAN_EXPORT int64_t JNICALL
-Avian_java_lang_System_mapLibraryName
-(Thread* t, object, uintptr_t* arguments)
-{
-  object original = reinterpret_cast<object>(arguments[0]);
-  unsigned originalLength = stringUTFLength(t, original);
-  THREAD_RUNTIME_ARRAY(t, char, originalChars, originalLength);
-  stringUTFChars
-    (t, original, RUNTIME_ARRAY_BODY(originalChars), originalLength);
-
-  return reinterpret_cast<uintptr_t>
-    (makeString(t, "%s%.*s%s", t->m->system->libraryPrefix(), originalLength,
-                RUNTIME_ARRAY_BODY(originalChars),
-                t->m->system->librarySuffix()));
-}
-
-extern "C" AVIAN_EXPORT int64_t JNICALL
 Avian_java_util_concurrent_atomic_AtomicLong_VMSupportsCS8
 (Thread*, object, uintptr_t*)
 {
@@ -2337,7 +2366,7 @@ Avian_java_util_concurrent_atomic_AtomicLong_VMSupportsCS8
 void register_java_io_Console(_JNIEnv*) { }
 void register_java_lang_ProcessManager(_JNIEnv*) { }
 void register_libcore_net_RawSocket(_JNIEnv*) { }
-void register_org_apache_harmony_xnet_provider_jsse_NativeCrypto(_JNIEnv*) { }
+//void register_org_apache_harmony_xnet_provider_jsse_NativeCrypto(_JNIEnv*) { }
 
 extern "C" AVIAN_EXPORT void JNICALL
 Avian_libcore_io_OsConstants_initConstants
@@ -2399,8 +2428,6 @@ Avian_libcore_io_Posix_uname(Thread* t, object, uintptr_t*)
   object arch = makeString(t, "x86");
 #elif defined ARCH_x86_64
   object arch = makeString(t, "x86_64");
-#elif defined ARCH_powerpc
-  object arch = makeString(t, "ppc");
 #elif defined ARCH_arm
   object arch = makeString(t, "arm");
 #else

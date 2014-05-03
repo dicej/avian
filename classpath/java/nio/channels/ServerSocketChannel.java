@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2013, Avian Contributors
+/* Copyright (c) 2008-2014, Avian Contributors
 
    Permission to use, copy, modify, and/or distribute this software
    for any purpose with or without fee is hereby granted, provided
@@ -66,10 +66,10 @@ public class ServerSocketChannel extends SelectableChannel {
     }
   }
 
-  private int doListen(String host, int port) throws IOException {
+  private void doListen(int socket, int host, int port) throws IOException {
     Socket.init();
 
-    return natDoListen(host, port);
+    natDoListen(socket, host, port);
   }
 
   public class Handle extends ServerSocket {
@@ -82,11 +82,10 @@ public class ServerSocketChannel extends SelectableChannel {
       } catch (ClassCastException e) {
         throw new IllegalArgumentException();
       }
-      channel.socket = doListen(a.getHostName(), a.getPort());
-      channel.configureBlocking(channel.isBlocking());
+      doListen(channel.socket, a.getAddress().getRawAddress(), a.getPort());
     }
   }
 
   private static native int natDoAccept(int socket) throws IOException;
-  private static native int natDoListen(String host, int port) throws IOException;
+  private static native void natDoListen(int socket, int host, int port) throws IOException;
 }

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2013, Avian Contributors
+/* Copyright (c) 2008-2014, Avian Contributors
 
    Permission to use, copy, modify, and/or distribute this software
    for any purpose with or without fee is hereby granted, provided
@@ -103,7 +103,7 @@ public final class URL {
     this.file = file;
     this.ref = ref;
     
-    int q = file.lastIndexOf('?');
+    int q = file == null ? -1 : file.lastIndexOf('?');
     if (q != -1) {
       this.query = file.substring(q + 1);
       this.path = file.substring(0, q);

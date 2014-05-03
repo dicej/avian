@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2013, Avian Contributors
+/* Copyright (c) 2008-2014, Avian Contributors
 
    Permission to use, copy, modify, and/or distribute this software
    for any purpose with or without fee is hereby granted, provided
@@ -73,6 +73,21 @@ public class SystemClassLoader extends ClassLoader {
     }
     return null;
   }
+
+  protected Package getPackage(String name) {
+    Package p = super.getPackage(name);
+    if (p == null) {
+      String source = getPackageSource(name);
+      if (source != null) {
+        // todo: load attributes from JAR manifest
+        definePackage(name, null, null, null, null, null, null, null);
+      }
+    }
+
+    return super.getPackage(name);
+  }
+
+  protected static native String getPackageSource(String name);
 
   // OpenJDK's java.lang.ClassLoader.getResource makes use of
   // sun.misc.Launcher to load bootstrap resources, which is not

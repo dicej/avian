@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2013, Avian Contributors
+/* Copyright (c) 2008-2014, Avian Contributors
 
    Permission to use, copy, modify, and/or distribute this software
    for any purpose with or without fee is hereby granted, provided
@@ -945,7 +945,7 @@ parsePoolEntry(Thread* t, Stream& s, uint32_t* index, object pool, unsigned i)
       unsigned si = s.read2() - 1;
       parsePoolEntry(t, s, index, pool, si);
         
-      object value = makeReference(t, 0, singletonObject(t, pool, si), 0);
+      object value = makeReference(t, 0, 0, singletonObject(t, pool, si), 0);
       set(t, pool, SingletonBody + (i * BytesPerWord), value);
 
       if(DebugClassReader) {
@@ -1005,7 +1005,7 @@ parsePoolEntry(Thread* t, Stream& s, uint32_t* index, object pool, unsigned i)
       object nameAndType = singletonObject(t, pool, nti);
 
       object value = makeReference
-          (t, class_, pairFirst(t, nameAndType), pairSecond(t, nameAndType));
+        (t, 0, class_, pairFirst(t, nameAndType), pairSecond(t, nameAndType));
       set(t, pool, SingletonBody + (i * BytesPerWord), value);
 
       if(DebugClassReader) {
@@ -1013,6 +1013,68 @@ parsePoolEntry(Thread* t, Stream& s, uint32_t* index, object pool, unsigned i)
       }
     }
   } return 1;
+
+  case CONSTANT_MethodHandle:
+    if (singletonObject(t, pool, i) == 0) {
+      unsigned kind = s.read1();
+      unsigned ri = s.read2() - 1;
+
+      parsePoolEntry(t, s, index, pool, ri);
+
+      object value = singletonObject(t, pool, ri);
+
+      if (DebugClassReader) {
+        fprintf(stderr, "   consts[%d] = method handle %d %s.%s%s\n", i, kind,
+                &byteArrayBody(t, referenceClass(t, value), 0),
+                &byteArrayBody(t, referenceName(t, value), 0),
+                &byteArrayBody(t, referenceSpec(t, value), 0));
+      }
+
+      value = makeReference
+        (t, kind, referenceClass(t, value), referenceName(t, value),
+         referenceSpec(t, value));
+
+      set(t, pool, SingletonBody + (i * BytesPerWord), value);
+    } return 1;
+
+  case CONSTANT_MethodType:
+    if (singletonObject(t, pool, i) == 0) {
+      unsigned ni = s.read2() - 1;
+
+      parsePoolEntry(t, s, index, pool, ni);
+
+      set(t, pool, SingletonBody + (i * BytesPerWord),
+          singletonObject(t, pool, ni));
+    } return 1;
+
+  case CONSTANT_InvokeDynamic:
+    if (singletonObject(t, pool, i) == 0) {
+      unsigned bootstrap = s.read2();
+      unsigned nti = s.read2() - 1;
+
+      parsePoolEntry(t, s, index, pool, nti);
+
+      object nameAndType = singletonObject(t, pool, nti);
+
+      const char* specString = reinterpret_cast<const char*>
+        (&byteArrayBody(t, pairSecond(t, nameAndType), 0));
+
+      unsigned parameterCount;
+      unsigned parameterFootprint;
+      unsigned returnCode;
+      scanMethodSpec
+        (t, specString, true, &parameterCount, &parameterFootprint,
+         &returnCode);
+
+      object template_ = makeMethod
+        (t, 0, returnCode, parameterCount, parameterFootprint, 0, 0, 0, 0,
+         pairFirst(t, nameAndType), pairSecond(t, nameAndType), 0, 0, 0);
+
+      object value = makeInvocation
+        (t, bootstrap, -1, 0, pool, template_, 0);
+
+      set(t, pool, SingletonBody + (i * BytesPerWord), value);
+    } return 1;
 
   default: abort(t);
   }
@@ -1077,6 +1139,21 @@ parsePool(Thread* t, Stream& s)
       case CONSTANT_Utf8:
         singletonMarkObject(t, pool, i);
         s.skip(s.read2());
+        break;
+
+      case CONSTANT_MethodHandle:
+        singletonMarkObject(t, pool, i);
+        s.skip(3);
+        break;
+
+      case CONSTANT_MethodType:
+        singletonMarkObject(t, pool, i);
+        s.skip(2);
+        break;
+
+      case CONSTANT_InvokeDynamic:
+        singletonMarkObject(t, pool, i);
+        s.skip(4);
         break;
 
       default: abort(t);
@@ -2067,15 +2144,17 @@ parseMethodTable(Thread* t, Stream& s, object class_, object pool)
         (&byteArrayBody(t, singletonObject(t, pool, spec - 1), 0));
 
       unsigned parameterCount;
+      unsigned parameterFootprint;
       unsigned returnCode;
-      scanMethodSpec(t, specString, &parameterCount, &returnCode);
+      scanMethodSpec(t, specString, flags & ACC_STATIC, &parameterCount,
+                     &parameterFootprint, &returnCode);
 
       object method =  t->m->processor->makeMethod
         (t,
          0, // vm flags
          returnCode,
          parameterCount,
-         parameterFootprint(t, specString, flags & ACC_STATIC),
+         parameterFootprint,
          flags,
          0, // offset
          singletonObject(t, pool, name - 1),
@@ -3044,6 +3123,61 @@ findInTable(Thread* t, object table, object name, object spec,
   return 0;
 }
 
+void
+updatePackageMap(Thread* t, object class_)
+{
+  PROTECT(t, class_);
+
+  if (root(t, Machine::PackageMap) == 0) {
+    setRoot(t, Machine::PackageMap, makeHashMap(t, 0, 0));
+  }
+
+  object className = vm::className(t, class_);
+  if ('[' != byteArrayBody(t, className, 0)) {
+    THREAD_RUNTIME_ARRAY
+      (t, char, packageName, byteArrayLength(t, className));
+
+    char* s = reinterpret_cast<char*>(&byteArrayBody(t, className, 0));
+    char* p = strrchr(s, '/');
+
+    if (p) {
+      int length = (p - s) + 1;
+      memcpy(RUNTIME_ARRAY_BODY(packageName),
+             &byteArrayBody(t, className, 0),
+             length);
+      RUNTIME_ARRAY_BODY(packageName)[length] = 0;
+
+      object key = vm::makeByteArray
+        (t, "%s", RUNTIME_ARRAY_BODY(packageName));
+      PROTECT(t, key);
+
+      hashMapRemove
+        (t, root(t, Machine::PackageMap), key, byteArrayHash,
+         byteArrayEqual);
+
+      object source = classSource(t, class_);
+      if (source) {
+        // note that we strip the "file:" prefix, since OpenJDK's
+        // Package.defineSystemPackage expects an unadorned filename:
+        const unsigned PrefixLength = 5;
+        unsigned sourceNameLength = byteArrayLength(t, source)
+          - PrefixLength;
+        THREAD_RUNTIME_ARRAY(t, char, sourceName, sourceNameLength);
+        memcpy(RUNTIME_ARRAY_BODY(sourceName),
+               &byteArrayBody(t, source, PrefixLength),
+               sourceNameLength);
+
+        source = vm::makeByteArray(t, "%s", RUNTIME_ARRAY_BODY(sourceName));
+      } else {
+        source = vm::makeByteArray(t, "avian-dummy-package-source");
+      }
+
+      hashMapInsert
+        (t, root(t, Machine::PackageMap), key, source, byteArrayHash);
+    }
+  }
+}
+
 } // namespace
 
 namespace vm {
@@ -3066,7 +3200,6 @@ Machine::Machine(System* system, Heap* heap, Finder* bootFinder,
   exclusive(0),
   finalizeThread(0),
   jniReferences(0),
-  properties(properties),
   propertyCount(propertyCount),
   arguments(arguments),
   argumentCount(argumentCount),
@@ -3102,6 +3235,15 @@ Machine::Machine(System* system, Heap* heap, Finder* bootFinder,
   heap->setClient(heapClient);
 
   populateJNITables(&javaVMVTable, &jniEnvVTable);
+
+  // Copying the properties memory (to avoid memory crashes)
+  this->properties = (char**)heap->allocate(sizeof(char*) * propertyCount);
+  for (unsigned int i = 0; i < propertyCount; i++)
+  {
+    size_t length = strlen(properties[i]) + 1; // +1 for null-terminating char
+    this->properties[i] = (char*)heap->allocate(sizeof(char) * length);
+    memcpy(this->properties[i], properties[i], length);
+  }
 
   const char* bootstrapProperty = findProperty(this, BOOTSTRAP_PROPERTY);
   const char* bootstrapPropertyDup = bootstrapProperty ? strdup(bootstrapProperty) : 0;
@@ -3169,6 +3311,10 @@ Machine::dispose()
 
   heap->free(arguments, sizeof(const char*) * argumentCount);
 
+  for (unsigned int i = 0; i < propertyCount; i++)
+  {
+    heap->free(properties[i], sizeof(char) * (strlen(properties[i]) + 1));
+  }
   heap->free(properties, sizeof(const char*) * propertyCount);
 
   static_cast<HeapClient*>(heapClient)->dispose();
@@ -4297,7 +4443,7 @@ resolveSystemClass(Thread* t, object loader, object spec, bool throw_,
     if (class_) {
       hashMapInsert(t, classLoaderMap(t, loader), spec, class_, byteArrayHash);
 
-      t->m->classpath->updatePackageMap(t, class_);
+      updatePackageMap(t, class_);
     } else if (throw_) {
       throwNew(t, throwType, "%s", &byteArrayBody(t, spec, 0));
     }
@@ -5094,6 +5240,10 @@ parseUtf8(Thread* t, object array)
 object
 getCaller(Thread* t, unsigned target, bool skipMethodInvoke)
 {
+  if (static_cast<int>(target) == -1) {
+    target = 2;
+  }
+
   class Visitor: public Processor::StackVisitor {
    public:
     Visitor(Thread* t, unsigned target, bool skipMethodInvoke):

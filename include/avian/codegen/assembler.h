@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2013, Avian Contributors
+/* Copyright (c) 2008-2014, Avian Contributors
 
    Permission to use, copy, modify, and/or distribute this software
    for any purpose with or without fee is hereby granted, provided
@@ -41,7 +41,7 @@ const bool TailCalls = true;
 const bool TailCalls = false;
 #endif
 
-#if (defined AVIAN_USE_FRAME_POINTER) || (defined ARCH_powerpc)
+#ifdef AVIAN_USE_FRAME_POINTER
 const bool UseFramePointer = true;
 #else
 const bool UseFramePointer = false;

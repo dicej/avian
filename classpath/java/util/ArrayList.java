@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2013, Avian Contributors
+/* Copyright (c) 2008-2014, Avian Contributors
 
    Permission to use, copy, modify, and/or distribute this software
    for any purpose with or without fee is hereby granted, provided
@@ -14,7 +14,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 
-public class ArrayList<T> extends AbstractList<T> implements java.io.Serializable {
+public class ArrayList<T> extends AbstractList<T> implements java.io.Serializable, RandomAccess {
   private static final int MinimumCapacity = 16;
 
   private Object[] array;

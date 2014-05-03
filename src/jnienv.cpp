@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Avian Contributors
+/* Copyright (c) 2008-2014, Avian Contributors
 
    Permission to use, copy, modify, and/or distribute this software
    for any purpose with or without fee is hereby granted, provided
@@ -349,12 +349,18 @@ findClass(Thread* t, uintptr_t* arguments)
 
   object caller = getCaller(t, 0);
 
-  return reinterpret_cast<uint64_t>
-    (makeLocalReference
-     (t, getJClass
-      (t, resolveClass
-       (t, caller ? classLoader(t, methodClass(t, caller))
-        : root(t, Machine::AppLoader), n))));
+  object c = resolveClass(t,
+                          caller ? classLoader(t, methodClass(t, caller))
+                                 : root(t, Machine::AppLoader),
+                          n);
+
+  if (t->m->classpath->mayInitClasses()) {
+    PROTECT(t, c);
+
+    initClass(t, c);
+  }
+
+  return reinterpret_cast<uint64_t>(makeLocalReference(t, getJClass(t, c)));
 }
 
 jclass JNICALL
@@ -3875,9 +3881,13 @@ JNI_CreateJavaVM(Machine** m, Thread** t, void* args)
   if (heapLimit == 0) heapLimit = 128 * 1024 * 1024;
 
   if (stackLimit == 0) stackLimit = 128 * 1024;
-  
-  if (classpath == 0) classpath = ".";
-  
+
+  bool addClasspathProperty = classpath == 0;
+  if (addClasspathProperty) {
+    classpath = ".";
+    ++propertyCount;
+  }
+
   System* s = makeSystem();
   Heap* h = makeHeap(s, heapLimit);
   Classpath* c = makeClasspath(s, h, javaHome, embedPrefix);
@@ -3915,6 +3925,9 @@ JNI_CreateJavaVM(Machine** m, Thread** t, void* args)
     free(bootLibrary);
   Processor* p = makeProcessor(s, h, crashDumpDirectory, true);
 
+  // reserve space for avian.version and file.encoding:
+  propertyCount += 2;
+
   const char** properties = static_cast<const char**>
     (h->allocate(sizeof(const char*) * propertyCount));
 
@@ -3932,9 +3945,26 @@ JNI_CreateJavaVM(Machine** m, Thread** t, void* args)
     *(argumentPointer++) = a->options[i].optionString;
   }
 
+  unsigned cpl = strlen(classpath);
+  RUNTIME_ARRAY(char, classpathProperty, cpl + strlen(CLASSPATH_PROPERTY) + 2);
+  if (addClasspathProperty) {
+    char* p = RUNTIME_ARRAY_BODY(classpathProperty);
+    local::append(&p, CLASSPATH_PROPERTY, strlen(CLASSPATH_PROPERTY), '=');
+    local::append(&p, classpath, cpl, 0);
+    *(propertyPointer++) = RUNTIME_ARRAY_BODY(classpathProperty);
+  }
+
+  *(propertyPointer++) = "avian.version=" AVIAN_VERSION;
+
+  // todo: should this be derived from the OS locale?  Should it be
+  // overrideable via JavaVMInitArgs?
+  *(propertyPointer++) = "file.encoding=UTF-8";
+
   *m = new (h->allocate(sizeof(Machine))) Machine
     (s, h, bf, af, p, c, properties, propertyCount, arguments, a->nOptions,
      stackLimit);
+
+  h->free(properties, sizeof(const char*) * propertyCount);
 
   *t = p->makeThread(*m, 0, 0);
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2013, Avian Contributors
+/* Copyright (c) 2008-2014, Avian Contributors
 
    Permission to use, copy, modify, and/or distribute this software
    for any purpose with or without fee is hereby granted, provided
@@ -62,9 +62,17 @@ public class InetAddress {
 	         (int)((addr[3] + 256) % 256);
 	}
   
-  int getRawAddress() {
+  public int getRawAddress() {
 	  return ip;
   }
   
-  static native int ipv4AddressForName(String name);
+  static native int ipv4AddressForName(String name) throws UnknownHostException;
+
+  public boolean equals(Object o) {
+    return o instanceof InetAddress && ((InetAddress) o).ip == ip;
+  }
+
+  public int hashCode() {
+    return ip;
+  }
 }

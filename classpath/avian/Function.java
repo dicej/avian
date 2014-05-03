@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2013, Avian Contributors
+/* Copyright (c) 2008-2014, Avian Contributors
 
    Permission to use, copy, modify, and/or distribute this software
    for any purpose with or without fee is hereby granted, provided
@@ -10,6 +10,6 @@
 
 package avian;
 
-public interface CallbackReceiver<T> {
-  public T receive(Callback<T> callback) throws Exception;
+public interface Function<A,B> {
+  public B call(A argument) throws Exception;
 }

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2013, Avian Contributors
+/* Copyright (c) 2008-2014, Avian Contributors
 
    Permission to use, copy, modify, and/or distribute this software
    for any purpose with or without fee is hereby granted, provided
@@ -559,8 +559,7 @@ public final class Class <T> implements Type, AnnotatedElement {
       String name = getCanonicalName();
       int index = name.lastIndexOf('.');
       if (index >= 0) {
-        return new Package(name.substring(0, index),
-                           null, null, null, null, null, null, null, null);
+        return getClassLoader().getPackage(name.substring(0, index));
       } else {
         return null;
       }

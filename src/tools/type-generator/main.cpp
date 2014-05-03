@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2013, Avian Contributors
+/* Copyright (c) 2008-2014, Avian Contributors
 
    Permission to use, copy, modify, and/or distribute this software
    for any purpose with or without fee is hereby granted, provided
@@ -1063,6 +1063,7 @@ parseType(Finder* finder, Object::ObjectType type, Object* p,
       }
     } client;
     System::Region* region = finder->find(append(javaName, ".class"));
+    if (region == 0) return 0;
     Stream s(&client, region->start(), region->length());
     parseJavaClass(t, &s, declarations);
     region->dispose();
@@ -1111,8 +1112,10 @@ parse(Finder* finder, Input* in)
 
   Object* o;
   while ((o = read(in, eos, 0)) != eos) {
-    declarations.append
-      (parseDeclaration(finder, o, declarations.first));
+    Object* declaration = parseDeclaration(finder, o, declarations.first);
+    if (declaration) {
+      declarations.append(declaration);
+    }
   }
 
   return declarations.first;
@@ -1841,6 +1844,7 @@ writeMap(Output* out, Object* type)
     Object* m = it.next();
 
     if (it.sawSuperclassBoundary) {
+      it.sawSuperclassBoundary = false;
       out->write("Type_pad, ");
     }
 

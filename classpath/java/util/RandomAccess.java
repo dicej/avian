@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2013, Avian Contributors
+/* Copyright (c) 2008-2014, Avian Contributors
 
    Permission to use, copy, modify, and/or distribute this software
    for any purpose with or without fee is hereby granted, provided
@@ -11,4 +11,6 @@
 package java.util;
 
 public interface RandomAccess {
+  /* nothing added here, this interface just indicates a 
+   * structure is efficient to access via index's directly.*/
 }

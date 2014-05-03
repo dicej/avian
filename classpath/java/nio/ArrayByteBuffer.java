@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2013, Avian Contributors
+/* Copyright (c) 2008-2014, Avian Contributors
 
    Permission to use, copy, modify, and/or distribute this software
    for any purpose with or without fee is hereby granted, provided
@@ -54,14 +54,14 @@ class ArrayByteBuffer extends ByteBuffer {
 
   public ByteBuffer put(ByteBuffer src) {
     int length = src.remaining();
-    checkPut(position, length);
+    checkPut(position, length, false);
     src.get(array, arrayOffset + position, length);
     position += length;
     return this;
   }
 
   public ByteBuffer put(byte[] src, int offset, int length) {
-    checkPut(position, length);
+    checkPut(position, length, false);
 
     System.arraycopy(src, offset, array, arrayOffset + position, length);
     position += length;
@@ -70,7 +70,7 @@ class ArrayByteBuffer extends ByteBuffer {
   }
 
   public ByteBuffer get(byte[] dst, int offset, int length) {
-    checkGet(position, length);
+    checkGet(position, length, false);
 
     System.arraycopy(array, arrayOffset + position, dst, offset, length);
     position += length;

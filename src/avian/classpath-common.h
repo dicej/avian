@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2013, Avian Contributors
+/* Copyright (c) 2008-2014, Avian Contributors
 
    Permission to use, copy, modify, and/or distribute this software
    for any purpose with or without fee is hereby granted, provided
@@ -239,8 +239,8 @@ loadLibrary(Thread* t, const char* path, const char* name, bool mapName,
       runOnLoadIfFound(t, lib);
     }
   } else if (throw_) {
-    throwNew(t, Machine::UnsatisfiedLinkErrorType, "library not found: %s",
-             name);
+    throwNew(t, Machine::UnsatisfiedLinkErrorType,
+             "library not found in %s: %s", path, name);
   }
 
   return lib;

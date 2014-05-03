@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2013, Avian Contributors
+/* Copyright (c) 2008-2014, Avian Contributors
 
    Permission to use, copy, modify, and/or distribute this software
    for any purpose with or without fee is hereby granted, provided
@@ -3296,11 +3296,12 @@ int
 methodReferenceReturnCode(Thread* t, object reference)
 {
   unsigned parameterCount;
+  unsigned parameterFootprint;
   unsigned returnCode;
   scanMethodSpec
     (t, reinterpret_cast<const char*>
-     (&byteArrayBody(t, referenceSpec(t, reference), 0)), &parameterCount,
-     &returnCode);
+     (&byteArrayBody(t, referenceSpec(t, reference), 0)), true,
+     &parameterCount, &parameterFootprint, &returnCode);
 
   return returnCode;
 }
@@ -8044,8 +8045,8 @@ callWithCurrentContinuation(MyThread* t, object receiver)
 
     if (root(t, ReceiveMethod) == 0) {
       object m = resolveMethod
-        (t, root(t, Machine::BootLoader), "avian/CallbackReceiver", "receive",
-         "(Lavian/Callback;)Ljava/lang/Object;");
+        (t, root(t, Machine::BootLoader), "avian/Function", "call",
+         "(Ljava/lang/Object;)Ljava/lang/Object;");
 
       if (m) {
         setRoot(t, ReceiveMethod, m);
@@ -8981,10 +8982,10 @@ class MyProcessor: public Processor {
         } else if (isThunk(t, ip) or isVirtualThunk(t, ip)) {
           // we caught the thread in a thunk where the stack register
           // indicates the most recent Java frame on the stack
-          
+
           // On e.g. x86, the return address will have already been
           // pushed onto the stack, in which case we use getIp to
-          // retrieve it.  On e.g. PowerPC and ARM, it will be in the
+          // retrieve it.  On e.g. ARM, it will be in the
           // link register.  Note that we can't just check if the link
           // argument is null here, since we use ecx/rcx as a
           // pseudo-link register on x86 for the purpose of tail
@@ -9096,6 +9097,9 @@ class MyProcessor: public Processor {
     if (codeAllocator.memory.begin() == 0) {
       codeAllocator.memory.items = static_cast<uint8_t*>(
           s->tryAllocateExecutable(ExecutableAreaSizeInBytes));
+
+      expect(t, codeAllocator.memory.items);
+
       codeAllocator.memory.count = ExecutableAreaSizeInBytes;
     }
 #endif

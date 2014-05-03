@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2013, Avian Contributors
+/* Copyright (c) 2008-2014, Avian Contributors
 
    Permission to use, copy, modify, and/or distribute this software
    for any purpose with or without fee is hereby granted, provided
@@ -161,29 +161,6 @@ class Memory: public Operand {
   int offset;
   int index;
   unsigned scale;
-};
-
-class Instr {
-public:
-
-  enum Opcode {
-    #define LIR_OP_0(x) OP_##x,
-    #define LIR_OP_1(x) OP_##x,
-    #define LIR_OP_2(x) OP_##x,
-    #define LIR_OP_3(x) OP_##x,
-    #include "lir-ops.inc.cpp"
-    #undef LIR_OP_0
-    #undef LIR_OP_1
-    #undef LIR_OP_2
-    #undef LIR_OP_3
-  };
-
-  static const char* opcodeName(Opcode op);
-
-  static Opcode opcodeFromNullary(Operation op);
-  static Opcode opcodeFromUnary(UnaryOperation op);
-  static Opcode opcodeFromBinary(BinaryOperation op);
-  static Opcode opcodeFromTernary(TernaryOperation op);
 };
 
 } // namespace lir

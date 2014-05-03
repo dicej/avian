@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2013, Avian Contributors
+/* Copyright (c) 2008-2014, Avian Contributors
 
    Permission to use, copy, modify, and/or distribute this software
    for any purpose with or without fee is hereby granted, provided
@@ -32,7 +32,7 @@ Test::Test(const char* name):
 bool Test::runAll() {
   int failures = 0;
   for(Test* t = Test::first; t; t = t->next) {
-    printf("%24s: ", t->name);
+    printf("%32s: ", t->name);
     t->run();
     failures += t->failures;
     if(t->failures > 0) {

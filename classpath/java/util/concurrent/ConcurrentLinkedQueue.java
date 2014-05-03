@@ -1,13 +1,22 @@
+/* Copyright (c) 2008-2014, Avian Contributors
+
+   Permission to use, copy, modify, and/or distribute this software
+   for any purpose with or without fee is hereby granted, provided
+   that the above copyright notice and this permission notice appear
+   in all copies.
+
+   There is NO WARRANTY for this software.  See license.txt for
+   details. */
+
 package java.util.concurrent;
 
+import java.util.AbstractQueue;
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.NoSuchElementException;
-import java.util.Queue;
 
 import avian.Atomic;
 
-public class ConcurrentLinkedQueue<T> implements Queue<T> {
+public class ConcurrentLinkedQueue<T> extends AbstractQueue<T> {
   private static final long QueueHead;
   private static final long QueueTail;
   private static final long NodeNext;
@@ -68,28 +77,8 @@ public class ConcurrentLinkedQueue<T> implements Queue<T> {
   }
 
   @Override
-  public T element() {
-    T result = peek();
-    if (result == null) {
-      throw new NoSuchElementException();
-    } else {
-      return result;
-    }
-  }
-
-  @Override
   public T poll() {
     return poll(true);
-  }
-
-  @Override
-  public T remove() {
-    T result = poll();
-    if (result == null) {
-      throw new NoSuchElementException();
-    } else {
-      return result;
-    }
   }
 
   private T poll(boolean remove) {
@@ -146,12 +135,6 @@ public class ConcurrentLinkedQueue<T> implements Queue<T> {
 
   @Override
   public boolean containsAll(Collection<?> c) {
-    // TODO - implement
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public boolean addAll(Collection<? extends T> collection) {
     // TODO - implement
     throw new UnsupportedOperationException();
   }

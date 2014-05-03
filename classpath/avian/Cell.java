@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2013, Avian Contributors
+/* Copyright (c) 2008-2014, Avian Contributors
 
    Permission to use, copy, modify, and/or distribute this software
    for any purpose with or without fee is hereby granted, provided
@@ -30,5 +30,25 @@ public class Cell <T> {
     }
     sb.append(")");
     return sb.toString();
+  }
+
+  public static <Car> Cell<Car> cons(Car car, Cell<Car> cdr) {
+    return new Cell(car, cdr);
+  }
+
+  public static <T> boolean equal(T a, T b) {
+    return (a == null && b == null) || (a != null && a.equals(b));
+  }
+  
+  public static <Car> boolean equal(Cell<Car> a, Cell<Car> b) {
+    while (a != null) {
+      if (b == null || (! equal(a.value, b.value))) {
+        return false;
+      }
+      a = a.next;
+      b = b.next;
+    }
+
+    return b == null;
   }
 }
