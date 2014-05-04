@@ -215,20 +215,6 @@ contextResolveStrategy(Context*)
   return NoResolve;
 }
 
-void
-followReads(Operand** p)
-{
-  Operand* o = *p;
-  if (o) {
-    Read* r = o->read;
-    while (r) {
-      o = r->next;
-      r = o->read;
-    }
-    *p = o;
-  }
-}
-
 unsigned
 maxLocals(Context* c)
 {
@@ -274,14 +260,6 @@ exitInstruction(Context* c)
            (c->frameMask & DirtyStack) ? c->frame->stack : copy
            (c, c->frame->stack, c->frame->sp, maxStack(c)), c->frame->sp);
       }
-
-      for (unsigned i = 0; i < maxLocals(c); ++i) {
-        followReads(c->frame->locals + i);
-      }
-
-      for (unsigned i = 0; i < c->frame->sp; ++i) {
-        followReads(c->frame->stack + i);
-      }
     }
 
     instruction->exit = c->frame;
@@ -304,6 +282,17 @@ next(Context* c)
   }
 }
 
+void
+append(Context* c, Read** p, Read* read)
+{
+  size_t i = 0;
+  while (*p) {
+    assert(c->t, i++ < 100);
+    p = &((*p)->peer);
+  }
+  *p = read;
+}
+
 bool
 visitInstruction(Context* c)
 {
@@ -317,18 +306,20 @@ visitInstruction(Context* c)
       for (unsigned j = 0; j < maxLocals(c); ++j) {
         Operand* o = predecessor->exit->locals[j];
         if (o) {
-          assert(c->t, o->read == 0);
-          o->read = i->entry->locals[j]->read;
-          if (o->read and o->read->next == o) trap();
+          Operand* local = i->entry->locals[j];
+          if (local) {
+            append(c, &(o->read), local->read);
+          }
         }
       }
 
       for (unsigned j = 0; j < c->frame->sp; ++j) {
         Operand* o = predecessor->exit->stack[j];
         if (o) {
-          assert(c->t, o->read == 0);
-          o->read = i->entry->stack[j]->read;
-          if (o->read and o->read->next == o) trap();
+          Operand* stack = i->entry->stack[j];
+          if (stack) {
+            append(c, &(o->read), stack->read);
+          }
         }
       }
 
@@ -348,6 +339,8 @@ visitInstruction(Context* c)
 void
 pushInt(Context* c, Integer v)
 {
+  fprintf(stderr, "push %p at %d\n", v, c->state.ip);
+
   if ((c->frameMask & DirtyStack) == 0) {
     c->frame = new (c->allocator) Frame
       (c->frame->locals, copy(c, c->frame->stack, c->frame->sp, maxStack(c)),
@@ -404,6 +397,8 @@ Integer
 popInt(Context* c)
 {
   dirtyStackPointer(c);
+
+  fprintf(stderr, "pop %p at %d\n", c->frame->stack[c->frame->sp - 1], c->state.ip);
 
   return c->frame->stack[-- c->frame->sp];
 }
@@ -571,10 +566,12 @@ appendEventArray(Context* c, Event::Type eventType, void* context,
 
   for (unsigned i = 0; i < readCount; ++i) {
     Operand* current = reads[i];
-    followReads(&current);
 
     Operand* next = new (c->allocator) Operand(current->value, 0);
     Read* read = new (c->allocator) Read(event, i, next);
+    if (current->read) {
+      read->peer = current->read;
+    }
     current->read = read;
     event->reads[i] = read;
     
@@ -1697,12 +1694,44 @@ make(Context* c, object type)
   return appendEvent(c, Event::Make, 0, type, 0);
 }
 
+Machine::Type
+arrayType(Thread* t, unsigned type)
+{
+  switch (type) {
+  case T_BOOLEAN:
+    return Machine::BooleanArrayType;
+
+  case T_CHAR:
+    return Machine::CharArrayType;
+
+  case T_FLOAT:
+    return Machine::FloatArrayType;
+
+  case T_DOUBLE:
+    return Machine::DoubleArrayType;
+
+  case T_BYTE:
+    return Machine::ByteArrayType;
+
+  case T_SHORT:
+    return Machine::ShortArrayType;
+
+  case T_INT:
+    return Machine::IntArrayType;
+
+  case T_LONG:
+    return Machine::LongArrayType;
+
+  default: abort(t);
+  }
+}
+
 Reference
 makeArray(Context* c, unsigned type, Integer length)
 {
   return appendEvent
-    (c, Event::MakeArray, new (c->allocator) Event::MakeArrayContext(type), 0,
-     1, length);
+    (c, Event::MakeArray, new (c->allocator) Event::MakeArrayContext(type),
+     vm::type(c->t, arrayType(c->t, type)), 1, length);
 }
 
 void

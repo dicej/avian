@@ -260,11 +260,13 @@ class Read {
   Read(Event* event, unsigned position, Operand* next):
     event(event),
     next(next),
+    peer(0),
     position(position)
   { }
 
   Event* event;
   Operand* next;
+  Read* peer;
   unsigned position;
 };
 
