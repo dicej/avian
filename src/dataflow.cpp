@@ -104,7 +104,6 @@ class Context {
     t(t),
     allocator(allocator),
     trace(trace),
-    instruction(0),
     graph(makeGraph(t, allocator, method, trace)),
     states(t->m->system, allocator, 0),
     frame(new (allocator) Frame
@@ -181,7 +180,6 @@ class Context {
   Thread* t;
   Allocator* allocator;
   object trace;
-  Instruction* instruction;
   Graph* graph;
   Zone states;
   Frame* frame;
@@ -247,7 +245,7 @@ copy(Context* c, Operand** array, unsigned size)
 Instruction*
 exitInstruction(Context* c)
 {
-  Instruction* instruction = c->instruction;
+  Instruction* instruction = c->state.instruction;
 
   if (instruction) {
     if (c->frameMask & DirtyReads) {
@@ -263,7 +261,7 @@ exitInstruction(Context* c)
     }
 
     instruction->exit = c->frame;
-    c->instruction = 0;
+    c->state.instruction = 0;
     c->frameMask = 0;
   }
 
@@ -288,6 +286,10 @@ append(Context* c, Read** p, Read* read)
   size_t i = 0;
   while (*p) {
     assert(c->t, i++ < 100);
+
+    if (*p == read) {
+      return;
+    }
     p = &((*p)->peer);
   }
   *p = read;
@@ -297,6 +299,8 @@ bool
 visitInstruction(Context* c)
 {
   Instruction* predecessor = exitInstruction(c);
+
+  fprintf(stderr, "visit %d predecessor %d\n", c->state.ip, predecessor ? predecessor->ip : -1);
 
   assert(c->t, c->frameMask == 0);
 
@@ -329,7 +333,7 @@ visitInstruction(Context* c)
     }
   } else {
     i = new (c->allocator) Instruction(c->frame, c->state.ip);
-    c->instruction = i;
+    c->state.instruction = i;
     c->graph->instructions[c->state.ip] = i;
   }
 
