@@ -664,6 +664,10 @@ class MySystem : public System {
 
     mutex = CreateMutex(0, false, 0);
     assertT(this, mutex);
+
+    if (not QueryPerformanceFrequency(&frequency)) {
+      frequency.QuadPart = 0;
+    }
   }
 
   virtual void* tryAllocate(size_t sizeInBytes)
@@ -988,6 +992,22 @@ class MySystem : public System {
              | time.dwLowDateTime) / 10000) - 11644473600000LL;
   }
 
+  virtual int64_t nanoTime()
+  {
+    LARGE_INTEGER now;
+    if (frequency.QuadPart and QueryPerformanceCounter(&now)) {
+      return static_cast<int64_t>(now.QuadPart)
+        * (static_cast<int64_t>(1000 * 1000 * 1000) / frequency.QuadPart);
+    } else {
+      static int64_t then = 0;
+      if (then == 0) {
+        then = this->now();
+      }
+
+      return (this->now() - then) * 1000 * 1000;
+    }
+  }
+
   virtual void yield()
   {
 #if !defined(WINAPI_FAMILY) || WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
@@ -1019,6 +1039,7 @@ class MySystem : public System {
 
   HANDLE mutex;
   bool reentrant;
+  LARGE_INTEGER frequency;
 };
 
 }  // namespace

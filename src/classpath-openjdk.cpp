@@ -3226,7 +3226,7 @@ extern "C" AVIAN_EXPORT jlong JNICALL
 
 extern "C" AVIAN_EXPORT jlong JNICALL EXPORT(JVM_NanoTime)(Thread* t, jclass)
 {
-  return t->m->system->now() * 1000 * 1000;
+  return t->m->system->nanoTime();
 }
 
 uint64_t jvmArrayCopy(Thread* t, uintptr_t* arguments)

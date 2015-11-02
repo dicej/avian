@@ -351,6 +351,18 @@ extern "C" AVIAN_EXPORT int64_t JNICALL
   return reinterpret_cast<int64_t (*)(int64_t)>(function)(argument);
 }
 
+extern "C" AVIAN_EXPORT int64_t JNICALL
+    Avian_java_lang_System_currentTimeMillis(Thread* t, object, uintptr_t*)
+{
+  return t->m->system->now();
+}
+
+extern "C" AVIAN_EXPORT int64_t JNICALL
+    Avian_java_lang_System_nanoTime(Thread* t, object, uintptr_t*)
+{
+  return t->m->system->nanoTime();
+}
+
 extern "C" AVIAN_EXPORT void JNICALL
     Avian_java_lang_Runtime_exit(Thread* t, object, uintptr_t* arguments)
 {

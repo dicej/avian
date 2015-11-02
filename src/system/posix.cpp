@@ -16,6 +16,8 @@
 #ifdef __APPLE__
 #include "CoreFoundation/CoreFoundation.h"
 #include "sys/ucontext.h"
+#include <mach/mach.h>
+#include <mach/mach_time.h>
 #undef assert
 #elif defined(__ANDROID__)
 #include <asm/sigcontext.h> /* for sigcontext */
@@ -636,6 +638,13 @@ class MySystem : public System {
     
       expect(this, make(&visitLock) == 0);
     }
+
+#ifdef __APPLE__
+    mach_timebase_info_data_t tb;
+    useMachAbsoluteTime = mach_timebase_info(&tb) == KERN_SUCCESS
+      and tb.denom == 1
+      and tb.numer == 1;
+#endif
   }
 
   // Returns true on success, false on failure
@@ -925,6 +934,28 @@ class MySystem : public System {
            + (static_cast<int64_t>(tv.tv_usec) / 1000);
   }
 
+  virtual int64_t nanoTime()
+  {
+#ifdef __APPLE__
+    if (useMachAbsoluteTime) {
+      return mach_absolute_time();
+    }
+#else
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
+      return (static_cast<int64_t>(ts.tv_sec) * 1000 * 1000 * 1000)
+        + static_cast<int64_t>(ts.tv_nsec);
+    }
+#endif
+
+    static int64_t then = 0;
+    if (then == 0) {
+      then = now();
+    }
+
+    return (now() - then) * 1000 * 1000;
+  }
+
   virtual void yield()
   {
     sched_yield();
@@ -960,6 +991,9 @@ class MySystem : public System {
   ThreadVisitor* threadVisitor;
   Thread* visitTarget;
   System::Monitor* visitLock;
+#ifdef __APPLE__
+  bool useMachAbsoluteTime;
+#endif
 };
 
 void handleSignal(int signal, siginfo_t*, void* context)

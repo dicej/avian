@@ -133,6 +133,7 @@ class System : public avian::util::Aborter {
   virtual const char* toAbsolutePath(avian::util::AllocOnly* allocator,
                                      const char* name) = 0;
   virtual int64_t now() = 0;
+  virtual int64_t nanoTime() = 0;  
   virtual void yield() = 0;
   virtual void exit(int code) = 0;
   virtual void dispose() = 0;
